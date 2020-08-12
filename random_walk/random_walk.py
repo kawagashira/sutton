@@ -6,6 +6,7 @@
 
 import numpy as np
 import copy
+import matplotlib.pyplot as plt
 
 
 class Environment:
@@ -38,6 +39,10 @@ class Agent:
         self.state_size = state_size
         self.v = np.array([0.5 for i in range(state_size)])
 
+    def reset(self):
+
+        self.__init__(self.state_size)
+
     def select_action(self, state, mode='R'):
     
         """
@@ -54,6 +59,7 @@ class Agent:
         else:       # Arg Max
             i = np.argmax(np.array([self.v[state-1], self.v[state+1]]))
             return [state-1, state+1][i]
+
 
 class MonteCarlo:
 
@@ -78,27 +84,30 @@ class MonteCarlo:
         return episode
 
 
-    def train_61(self, rep, alpha, check_point=[1,10,20,50,100]):
+    def train_61(self, rep, alpha, gamma=0.95, check_point=[1,10,20,50,100,500,1000]):
 
         w = []
         for e in range(rep):
             episode = self.generate_episode()
-            g = 0.0
+            Gt = 0.0
+            ret = []
             print ('episode no.', e+1)
             new_v = copy.copy(self.agent.v)
-            for i in range(len(episode)): 
+            for i in reversed(range(1, len(episode))): 
                 state, action, reward = episode[i]
-                error = reward - self.agent.v[state]
+                Gt = gamma * Gt + reward
+                error = Gt - self.agent.v[state]
                 new_v[state] = self.agent.v[state] + alpha * error
-                #print ('alpha * error', alpha * error)
-                print ('update %d' % (i+1), 
+                print ('update %d' % i, 
                     ' '.join(map(lambda x: '%1.3f' % x, new_v[1:-1])),
-                    '<', state, action, reward, '> error %+1.3f' % error)
+                    'S%d->S%d;R%d' % (state, action, reward),
+                    'V(%d): %+1.3f' % (state, self.agent.v[state]),
+                    'G_t: %+1.3f' % Gt, 
+                    'error %+1.3f' % error)#, ret)
             self.agent.v = copy.copy(new_v)
             print (new_v[1:-1])
-            #if e+1 in check_point:
-            if 1:
-                w.append(copy.copy(self.agent.v[1:-1]))
+            if check_point is None or e+1 in check_point:
+                w.append([copy.copy(self.agent.v[1:-1]), e+1])
         return w
 
 
@@ -126,14 +135,39 @@ class MonteCarlo:
         return w
 
 
+    def loop_train(self, alpha_list=[0.01, 0.02, 0.03, 0.04]):
+
+        rep = 100
+        answer = np.zeros(5)
+        for i in range(5):
+            answer[i] = (i+1) / 5
+        print ('answer', answer)
+        for alpha in alpha_list:
+            self.agent.reset()
+            w = self.train_61(rep, alpha, 1.0, check_point=None)
+            dat = [d[0] for d in w]
+            print ('rms', compute_rmse(answer, dat))
+            plt.plot(range(1, rep+1), compute_rmse(answer, dat), label='%.2f' % alpha)
+        plt.legend()
+        plt.show()
+
+
+def compute_rmse(answer, data):
+
+    w = [np.mean((answer - d) ** 2) for d in data]
+    print (w)
+    #return np.mean(w)
+    return w
+
+
 def plot_value(w):
 
-    import matplotlib.pyplot as plt
     print (w)
     for i in range(len(w)):
         print (w[i])
-        plt.plot(range(1,len(w[i])+1),  w[i])
-    #plt.xlim((0,1))
+        plt.plot(range(1,len(w[i][0])+1),  w[i][0], label=str(w[i][1]))
+    plt.ylim((0,1))
+    plt.legend()
     plt.show()
 
 
@@ -141,7 +175,10 @@ if __name__ == '__main__':
 
     agent = Agent(7)
     method = MonteCarlo(agent)
-    w = method.train_61(100, 0.1)
-    #w = method.train_62(100, 0.1, 0.80)
+    """
+    w = method.train_61(100, 0.1, 1.0)
     plot_value(w)
+    """
+    method.loop_train()
+    
 
