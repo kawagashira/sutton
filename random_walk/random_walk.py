@@ -154,9 +154,8 @@ class MonteCarlo:
 
 def compute_rmse(answer, data):
 
-    w = [np.mean((answer - d) ** 2) for d in data]
+    w = np.sqrt([np.mean((answer - d) ** 2) for d in data])
     print (w)
-    #return np.mean(w)
     return w
 
 
