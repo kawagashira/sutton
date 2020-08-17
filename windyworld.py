@@ -224,6 +224,7 @@ if __name__ == '__main__':
             plt.plot(s_step_list)
             #plt.show()
             step_list_file = '%s/step_list.png' % png_dir
+            plt.ylim((0,200))
             plt.savefig(step_list_file)
             plt.close('all')
 
