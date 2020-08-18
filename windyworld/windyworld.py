@@ -8,7 +8,6 @@ import shutil
 import random
 import numpy as np
 import pandas as pd
-import smooth
 import matplotlib
 matplotlib.rcParams['backend'] = 'TkAgg'
 import seaborn as sns
@@ -277,12 +276,3 @@ if __name__ == '__main__':
             agent.show_value(png_file)
             agent.show_arrow()
             show_step_graph(s_step_list, step_graph_file)
-
-
-    """
-    df = pd.DataFrame(w, columns = ['episode_id', 's_step', 's_r', 'ql_step', 'ql_r', 'ac_step', 'ac_r'])
-    df['smoothed_s_r'] = smooth.smooth(np.array(df['s_r']), window_len=20)[:num]
-    df['smoothed_ql_r'] = smooth.smooth(np.array(df['ql_r']), window_len=20)[:num]
-    df['smoothed_ac_r'] = smooth.smooth(np.array(df['ac_r']), window_len=20)[:num]
-    #df.to_csv('windyworld.csv', index=False)
-    """
