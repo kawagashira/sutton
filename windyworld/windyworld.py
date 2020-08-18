@@ -232,9 +232,10 @@ def actor_critic(env, agent, alpha, gamma):
     return i, R
 
 
-def show_step_graph(step_list, png_file):
+def show_step_graph(step_list, std_list, png_file):
 
-    plt.plot(s_step_list)
+    plt.plot(s_step_list, label='#steps')
+    plt.plot(std_list, label='SD')
     plt.yscale('log')
     plt.savefig(png_file)
     plt.close('all')
@@ -248,15 +249,16 @@ if __name__ == '__main__':
     alpha       = 0.5
     gamma       = 1.0
     dim         = (10, 7)
-    num         = 100
+    num         = 4000
     png_dir     = 'png'
+    slide       = 20
 
     agent       = KingsMoveAgent(epsilon)
     ql_agent    = KingsMoveAgent(epsilon)
     ac_agent    = ActorCriticAgent(dim, epsilon)
     env         = Env(agent.AGENTTYPE)
     w = []
-    s_step_list = []
+    s_step_list, step_std_list = [], []
 
     if os.path.isdir(png_dir):
         shutil.rmtree(png_dir)
@@ -270,9 +272,11 @@ if __name__ == '__main__':
         #w.append([n + 1, s_step, s_r, ql_step, ql_r, ac_step, ac_r])
         w.append([n + 1, s_step, s_r])
         s_step_list.append(s_step)
-        print ('%3d %3d %.2f' % (n+1, s_step, np.array(s_step_list[-10:]).mean()), s_a)
+        step_slide  = np.array(s_step_list[-slide:])
+        step_std_list.append(step_slide.mean())
+        print ('%3d %3d %2.2f %2.2f' % (n+1, s_step, step_slide.mean(), step_slide.std()), s_a)
         if (n+1) % 10 == 0:
             png_file = '%s/value-%03d.png' % (png_dir, n+1)
             agent.show_value(png_file)
             agent.show_arrow()
-            show_step_graph(s_step_list, step_graph_file)
+            show_step_graph(s_step_list, step_std_list, step_graph_file)
