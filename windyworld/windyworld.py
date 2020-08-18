@@ -122,6 +122,14 @@ class AbstractAgent:
         for a in reversed(arrow):
             print (a)
 
+    def get_action_str(self, a_list):
+
+        if self.AGENTTYPE == 4:
+            delimiter = ''
+        elif self.AGENTTYPE == 8:
+            delimiter = ' '
+        return delimiter.join([self.DIRECTION[a] for a in a_list])
+
 
 class FourMoveAgent(AbstractAgent):
 
@@ -187,7 +195,8 @@ def sarsa(env, agent, alpha, gamma):
             + alpha * (r + gamma * agent.get_q(env.state, a1) - agent.get_q(s0, a))
         a = copy.copy(a1)
     a_list.append(a)
-    return i, R, ' '.join([agent.DIRECTION[a] for a in a_list])
+    return i, R, a_list
+    #return i, R, ' '.join([agent.DIRECTION[a] for a in a_list])
 
 
 def q_learn(env, agent, alpha, gamma):
@@ -252,15 +261,17 @@ if __name__ == '__main__':
     #alpha       = 0.01
     gamma       = 1.0
     dim         = (10, 7)
-    num         = 4000
+    num         = 1000
     slide       = 20
 
     now = dt.now()
     png_dir     = now.strftime('png-%y%m%d-%H%M%S')
     #png_dir     = 'png'
 
-    agent       = KingsMoveAgent(epsilon)
-    ql_agent    = KingsMoveAgent(epsilon)
+    agent       = FourMoveAgent(epsilon)
+    ql_agent    = FourMoveAgent(epsilon)
+    #agent       = KingsMoveAgent(epsilon)
+    #ql_agent    = KingsMoveAgent(epsilon)
     ac_agent    = ActorCriticAgent(dim, epsilon)
     env         = Env(agent.AGENTTYPE)
     w = []
@@ -280,7 +291,8 @@ if __name__ == '__main__':
         s_step_list.append(s_step)
         step_slide  = np.array(s_step_list[-slide:])
         step_std_list.append(step_slide.mean())
-        print ('%3d %3d %2.2f %2.2f' % (n+1, s_step, step_slide.mean(), step_slide.std()), s_a)
+        s_a_str = agent.get_action_str(s_a)
+        print ('%3d %3d %2.2f %2.2f' % (n+1, s_step, step_slide.mean(), step_slide.std()), s_a_str)
         if (n+1) % 10 == 0:
             png_file = '%s/value-%03d.png' % (png_dir, n+1)
             agent.show_value(png_file)
