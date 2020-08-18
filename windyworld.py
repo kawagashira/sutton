@@ -143,8 +143,10 @@ class KingsMoveAgent(AbstractAgent):
         self.q = np.zeros((10, 7, self.action_size))
         self.epsilon = epsilon
         self.AGENTTYPE = 8
-        self.DIRECTION = {0: 'U', 1:'r', 2:'R', 3:'e', 4: 'D', 5:'w', 6:'L', 7:'l'}
-        self.ARROW     = {0: '^', 1:'/', 2:'>', 3:'\\', 4: 'v', 5:'/', 6:'<', 7:'\\'}
+        #self.DIRECTION = {0: 'U', 1:'r', 2:'R', 3:'e', 4: 'D', 5:'w', 6:'L', 7:'l'}
+        self.DIRECTION  = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️'}
+        #self.ARROW     = {0: '^', 1:'/', 2:'>', 3:'\\', 4: 'v', 5:'/', 6:'<', 7:'\\'}
+        self.ARROW     = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️'}
             
             
 class ActorCriticAgent:
@@ -185,7 +187,7 @@ def sarsa(env, agent, alpha, gamma):
             + alpha * (r + gamma * agent.get_q(env.state, a1) - agent.get_q(s0, a))
         a = copy.copy(a1)
     a_list.append(a)
-    return i, R, ''.join([agent.DIRECTION[a] for a in a_list])
+    return i, R, ' '.join([agent.DIRECTION[a] for a in a_list])
 
 
 def q_learn(env, agent, alpha, gamma):
@@ -224,11 +226,20 @@ def actor_critic(env, agent, alpha, gamma):
         value = agent.value[s0[0], s0[1]]
         policy = agent.policy[s0[0], s0[1], a]
         delta = r + gamma * agent.value[env.state[0], env.state[1]] - value
-        agent.value[s0[0], s0[1]] += delta# * alpha
-        agent.policy[s0[0], s0[1], a] += delta# * alpha
+        agent.value[s0[0], s0[1]] += delta
+        agent.policy[s0[0], s0[1], a] += delta
         if is_goal:
             break
     return i, R
+
+
+def show_step_graph(step_list, png_file):
+
+    plt.plot(s_step_list)
+    plt.yscale('log')
+    plt.savefig(png_file)
+    plt.close('all')
+    return
 
 
 ###
@@ -238,12 +249,9 @@ if __name__ == '__main__':
     alpha       = 0.5
     gamma       = 1.0
     dim         = (10, 7)
-    num         = 1000
+    num         = 100
     png_dir     = 'png'
 
-    #agent       = Agent(epsilon)
-    #agent       = FourMoveAgent(epsilon)
-    #ql_agent    = FourMoveAgent(epsilon)
     agent       = KingsMoveAgent(epsilon)
     ql_agent    = KingsMoveAgent(epsilon)
     ac_agent    = ActorCriticAgent(dim, epsilon)
@@ -254,6 +262,7 @@ if __name__ == '__main__':
     if os.path.isdir(png_dir):
         shutil.rmtree(png_dir)
     os.mkdir(png_dir)
+    step_graph_file = '%s/step_list.png' % png_dir
 
     for n in range(num):
         s_step, s_r, s_a     = sarsa(env, agent, alpha, gamma)
@@ -267,11 +276,7 @@ if __name__ == '__main__':
             png_file = '%s/value-%03d.png' % (png_dir, n+1)
             agent.show_value(png_file)
             agent.show_arrow()
-            plt.plot(s_step_list)
-            step_list_file = '%s/step_list.png' % png_dir
-            plt.ylim((0,200))
-            plt.savefig(step_list_file)
-            plt.close('all')
+            show_step_graph(s_step_list, step_graph_file)
 
 
     """
