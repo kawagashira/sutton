@@ -13,6 +13,7 @@ matplotlib.rcParams['backend'] = 'TkAgg'
 import seaborn as sns
 import matplotlib.pyplot as plt
 import copy
+from datetime import datetime as dt
 
 
 class Env:
@@ -246,12 +247,17 @@ def show_step_graph(step_list, std_list, png_file):
 if __name__ == '__main__':
 
     epsilon     = 0.1
-    alpha       = 0.5
+    #alpha       = 0.5
+    alpha       = 0.1
+    #alpha       = 0.01
     gamma       = 1.0
     dim         = (10, 7)
     num         = 4000
-    png_dir     = 'png'
     slide       = 20
+
+    now = dt.now()
+    png_dir     = now.strftime('png-%y%m%d-%H%M%S')
+    #png_dir     = 'png'
 
     agent       = KingsMoveAgent(epsilon)
     ql_agent    = KingsMoveAgent(epsilon)
