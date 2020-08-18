@@ -268,10 +268,10 @@ if __name__ == '__main__':
     png_dir     = now.strftime('png-%y%m%d-%H%M%S')
     #png_dir     = 'png'
 
-    agent       = FourMoveAgent(epsilon)
-    ql_agent    = FourMoveAgent(epsilon)
-    #agent       = KingsMoveAgent(epsilon)
-    #ql_agent    = KingsMoveAgent(epsilon)
+    #agent       = FourMoveAgent(epsilon)
+    #ql_agent    = FourMoveAgent(epsilon)
+    agent       = KingsMoveAgent(epsilon)
+    ql_agent    = KingsMoveAgent(epsilon)
     ac_agent    = ActorCriticAgent(dim, epsilon)
     env         = Env(agent.AGENTTYPE)
     w = []
