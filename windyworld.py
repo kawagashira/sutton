@@ -13,19 +13,33 @@ import matplotlib
 matplotlib.rcParams['backend'] = 'TkAgg'
 import seaborn as sns
 import matplotlib.pyplot as plt
+import copy
 
-DIRECTION   = {0: 'U', 1:'R', 2:'D', 3:'L'}
-ARROW       = {0: '^', 1:'>', 2:'v', 3:'<'}
 
 class Env:
 
-    def __init__(self):
+    def __init__(self, agent_type=4):
 
+        self.agent_type = agent_type     # 4 for four move; 8 for king's move
         random.seed(0)
         self.dim = (10, 7)
         self.start  = [0, 3]
         self.goal   = [7, 3]
         self.wind   = [0,0,0,1,1,1,2,2,1,0]
+        self.FOURMOVE = {
+            0: (0, 1),      # NORTH
+            1: (1, 0),      # EAST
+            2: (0, -1),     # SOUTH
+            3: (-1, 0)}     # WEST
+        self.KINGSMOVE = {
+            0: (0, 1),      # NORTH
+            1: (1, 1),      # NORTHEAST
+            2: (1, 0),      # EAST
+            3: (1, -1),     # SOUTHEAST
+            4: (0, -1),     # SOUTH
+            5: (-1, -1),    # SOUTHWEST
+            6: (-1, 0),     # WEST
+            7: (-1, 1)}     # NORTHWEST
 
     def reset(self):
 
@@ -41,14 +55,11 @@ move    0:north, 1:east, 2:south, 3:west
         state0 = self.state.copy()
         self.map[state0[0], state0[1]] = move
 
-        if move == 0:           # NORTH
-            x, y = 0, 1
-        elif move == 1:         # EAST
-            x, y = 1, 0
-        elif move == 2:         # SOUTH
-            x, y = 0, -1
-        elif move == 3:         # WEST
-            x, y = -1, 0
+        if self.agent_type == 4:
+            x, y = self.FOURMOVE[move]
+        elif self.agent_type == 8:           # AGENTTYPE == 8
+            x, y = self.KINGSMOVE[move]
+
         self.state[0] += x
         self.state[1] += y + self.wind[state0[0]]   # plus wind
         r = -1
@@ -70,17 +81,18 @@ move    0:north, 1:east, 2:south, 3:west
 
         print (np.flipud(np.transpose(env.map)))
 
-class Agent:
 
-    def __init__(self, epsylon):
+class AbstractAgent:
 
-        self.q = np.zeros((10, 7, 4))
-        self.epsylon = epsylon
+    def __init__(self, epsilon):
+
+        self.q = np.zeros((10, 7, self.action_size))
+        self.epsilon = epsilon
 
     def e_greedy(self, state):
 
-        if random.random() < self.epsylon:     # RANDOM
-            return random.randint(0, 3)
+        if random.random() < self.epsilon:     # RANDOM
+            return random.randint(0, self.action_size - 1)
         else:
             return np.argmax(self.q[state[0], state[1], :])
 
@@ -106,10 +118,35 @@ class Agent:
     def show_arrow(self):
 
         m = np.argmax(self.q, axis=2)
-        arrow = list(map(lambda x: ''.join([ARROW[x] for x in x]), m.transpose()))
+        arrow = list(map(lambda x: ' '.join([self.ARROW[x] for x in x]), m.transpose()))
         for a in reversed(arrow):
             print (a)
 
+
+class FourMoveAgent(AbstractAgent):
+
+    def __init__(self, epsilon):
+
+        self.action_size = 4
+        self.q = np.zeros((10, 7, self.action_size))
+        self.epsilon = epsilon
+        self.AGENTTYPE = 4
+        self.DIRECTION   = {0: 'U', 1:'R', 2:'D', 3:'L'}
+        self.ARROW       = {0: '^', 1:'>', 2:'v', 3:'<'}
+            
+
+class KingsMoveAgent(AbstractAgent):
+
+    def __init__(self, epsilon):
+
+        self.action_size = 8
+        self.q = np.zeros((10, 7, self.action_size))
+        self.epsilon = epsilon
+        self.AGENTTYPE = 8
+        self.DIRECTION = {0: 'U', 1:'r', 2:'R', 3:'e', 4: 'D', 5:'w', 6:'L', 7:'l'}
+        self.ARROW     = {0: '^', 1:'/', 2:'>', 3:'\\', 4: 'v', 5:'/', 6:'<', 7:'\\'}
+            
+            
 class ActorCriticAgent:
 
     def __init__(self, dim, epsylon):
@@ -124,6 +161,7 @@ class ActorCriticAgent:
             return random.randint(0, 3)
         else:
             return np.argmax(self.policy[state[0], state[1], :])
+
 
 def sarsa(env, agent, alpha, gamma):
 
@@ -143,10 +181,12 @@ def sarsa(env, agent, alpha, gamma):
         R += r
         a1 = agent.e_greedy(env.state)
         value = agent.get_q(s0, a)
-        agent.q[s0[0], s0[1], a] = agent.get_q(s0, a) + alpha * (r + gamma * agent.get_q(env.state, a1) - agent.get_q(s0, a))
-        a = a1
+        agent.q[s0[0], s0[1], a] = agent.get_q(s0, a)   \
+            + alpha * (r + gamma * agent.get_q(env.state, a1) - agent.get_q(s0, a))
+        a = copy.copy(a1)
     a_list.append(a)
-    return i, R, ''.join([DIRECTION[a] for a in a_list])
+    return i, R, ''.join([agent.DIRECTION[a] for a in a_list])
+
 
 def q_learn(env, agent, alpha, gamma):
 
@@ -166,6 +206,7 @@ def q_learn(env, agent, alpha, gamma):
         agent.q[s0[0], s0[1], a] = agent.get_q(s0, a) + alpha * (r + gamma * agent.max_q(env.state) - agent.get_q(s0, a))
     return i, R
         
+
 def actor_critic(env, agent, alpha, gamma):
 
     ### Q-LEARNING ###
@@ -189,20 +230,24 @@ def actor_critic(env, agent, alpha, gamma):
             break
     return i, R
 
+
 ###
 if __name__ == '__main__':
 
-    epsylon     = 0.1
+    epsilon     = 0.1
     alpha       = 0.5
     gamma       = 1.0
     dim         = (10, 7)
     num         = 1000
     png_dir     = 'png'
 
-    env = Env()
-    agent       = Agent(epsylon)
-    ql_agent    = Agent(epsylon)
-    ac_agent    = ActorCriticAgent(dim, epsylon)
+    #agent       = Agent(epsilon)
+    #agent       = FourMoveAgent(epsilon)
+    #ql_agent    = FourMoveAgent(epsilon)
+    agent       = KingsMoveAgent(epsilon)
+    ql_agent    = KingsMoveAgent(epsilon)
+    ac_agent    = ActorCriticAgent(dim, epsilon)
+    env         = Env(agent.AGENTTYPE)
     w = []
     s_step_list = []
 
@@ -212,9 +257,10 @@ if __name__ == '__main__':
 
     for n in range(num):
         s_step, s_r, s_a     = sarsa(env, agent, alpha, gamma)
-        ql_step, ql_r   = q_learn(env, ql_agent, alpha, gamma)
-        ac_step, ac_r   = actor_critic(env, ac_agent, alpha, gamma)
-        w.append([n + 1, s_step, s_r, ql_step, ql_r, ac_step, ac_r])
+        #ql_step, ql_r   = q_learn(env, ql_agent, alpha, gamma)
+        #ac_step, ac_r   = actor_critic(env, ac_agent, alpha, gamma)
+        #w.append([n + 1, s_step, s_r, ql_step, ql_r, ac_step, ac_r])
+        w.append([n + 1, s_step, s_r])
         s_step_list.append(s_step)
         print ('%3d %3d %.2f' % (n+1, s_step, np.array(s_step_list[-10:]).mean()), s_a)
         if (n+1) % 10 == 0:
@@ -222,7 +268,6 @@ if __name__ == '__main__':
             agent.show_value(png_file)
             agent.show_arrow()
             plt.plot(s_step_list)
-            #plt.show()
             step_list_file = '%s/step_list.png' % png_dir
             plt.ylim((0,200))
             plt.savefig(step_list_file)
