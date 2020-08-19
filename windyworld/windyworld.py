@@ -18,9 +18,9 @@ from datetime import datetime as dt
 
 class Env:
 
-    def __init__(self, agent_type=4):
+    def __init__(self, action_size=4):
 
-        self.agent_type = agent_type     # 4 for four move; 8 for king's move
+        self.action_size = action_size    # 4 for four move; 8 for king's move
         random.seed(0)
         self.dim = (10, 7)
         self.start  = [0, 3]
@@ -39,7 +39,8 @@ class Env:
             4: (0, -1),     # SOUTH
             5: (-1, -1),    # SOUTHWEST
             6: (-1, 0),     # WEST
-            7: (-1, 1)}     # NORTHWEST
+            7: (-1, 1),     # NORTHWEST
+            8: (0, 0)}      # STAY
 
     def reset(self):
 
@@ -55,9 +56,9 @@ move    0:north, 1:east, 2:south, 3:west
         state0 = self.state.copy()
         self.map[state0[0], state0[1]] = move
 
-        if self.agent_type == 4:
+        if self.action_size == 4:
             x, y = self.FOURMOVE[move]
-        elif self.agent_type == 8:           # AGENTTYPE == 8
+        elif self.action_size in [8, 9]:     # King's move w/o a nith move
             x, y = self.KINGSMOVE[move]
 
         self.state[0] += x
@@ -124,9 +125,9 @@ class AbstractAgent:
 
     def get_action_str(self, a_list):
 
-        if self.AGENTTYPE == 4:
+        if self.action_size == 4:
             delimiter = ''
-        elif self.AGENTTYPE == 8:
+        elif self.action_size in [8,9]:
             delimiter = ' '
         return delimiter.join([self.DIRECTION[a] for a in a_list])
 
@@ -145,16 +146,14 @@ class FourMoveAgent(AbstractAgent):
 
 class KingsMoveAgent(AbstractAgent):
 
-    def __init__(self, epsilon):
+    def __init__(self, epsilon, action_size=8):
 
-        self.action_size = 8
+        self.action_size = action_size
         self.q = np.zeros((10, 7, self.action_size))
         self.epsilon = epsilon
-        self.AGENTTYPE = 8
         #self.DIRECTION = {0: 'U', 1:'r', 2:'R', 3:'e', 4: 'D', 5:'w', 6:'L', 7:'l'}
-        self.DIRECTION  = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️'}
-        #self.ARROW     = {0: '^', 1:'/', 2:'>', 3:'\\', 4: 'v', 5:'/', 6:'<', 7:'\\'}
-        self.ARROW     = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️'}
+        self.DIRECTION  = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️', 8:'🔄'}
+        self.ARROW     = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️', 8:'🔄'}
             
             
 class ActorCriticAgent:
@@ -196,7 +195,6 @@ def sarsa(env, agent, alpha, gamma):
         a = copy.copy(a1)
     a_list.append(a)
     return i, R, a_list
-    #return i, R, ' '.join([agent.DIRECTION[a] for a in a_list])
 
 
 def q_learn(env, agent, alpha, gamma):
@@ -256,8 +254,8 @@ def show_step_graph(step_list, std_list, png_file):
 if __name__ == '__main__':
 
     epsilon     = 0.1
-    #alpha       = 0.5
-    alpha       = 0.1
+    alpha       = 0.5
+    #alpha       = 0.1
     #alpha       = 0.01
     gamma       = 1.0
     dim         = (10, 7)
@@ -265,15 +263,20 @@ if __name__ == '__main__':
     slide       = 20
 
     now = dt.now()
-    png_dir     = now.strftime('png-%y%m%d-%H%M%S')
-    #png_dir     = 'png'
 
     #agent       = FourMoveAgent(epsilon)
     #ql_agent    = FourMoveAgent(epsilon)
-    agent       = KingsMoveAgent(epsilon)
-    ql_agent    = KingsMoveAgent(epsilon)
+
+    #agent       = KingsMoveAgent(epsilon)
+    #ql_agent    = KingsMoveAgent(epsilon)
+    agent       = KingsMoveAgent(epsilon, 8)
+    ql_agent    = KingsMoveAgent(epsilon, 8)
+    #agent       = KingsMoveAgent(epsilon, 9)
+    #ql_agent    = KingsMoveAgent(epsilon, 9)
     ac_agent    = ActorCriticAgent(dim, epsilon)
-    env         = Env(agent.AGENTTYPE)
+
+    png_dir     = '%s-%s' % (now.strftime('png-%y%m%d-%H%M%S'), agent.action_size)
+    env         = Env(agent.action_size)
     w = []
     s_step_list, step_std_list = [], []
 
