@@ -92,9 +92,9 @@ move    0:north, 1:east, 2:south, 3:west
 
 class AbstractAgent:
 
-    def __init__(self, epsilon):
+    def __init__(self, dim, epsilon):
 
-        self.q = np.zeros((10, 7, self.action_size))
+        self.q = np.zeros((dim[0], dim[1], self.action_size))
         self.epsilon = epsilon
 
     def e_greedy(self, state):
@@ -138,13 +138,19 @@ class AbstractAgent:
             delimiter = ' '
         return delimiter.join([self.DIRECTION[a] for a in a_list])
 
+    def find_policy(self):
+
+        m = ([[np.argmax(self.q[i,j,:]) for i in range(self.dim[0])] for j in range(self.dim[1])])
+        print (np.flipud(np.array(m)))
+
 
 class FourMoveAgent(AbstractAgent):
 
-    def __init__(self, epsilon):
+    def __init__(self, dim, epsilon):
 
+        self.dim    = dim
         self.action_size = 4
-        self.q = np.zeros((10, 7, self.action_size))
+        self.q = np.zeros((dim[0], dim[1], self.action_size))
         self.epsilon = epsilon
         self.AGENTTYPE = 4
         self.DIRECTION   = {0: 'U', 1:'R', 2:'D', 3:'L'}
