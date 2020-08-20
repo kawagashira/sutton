@@ -18,9 +18,10 @@ from datetime import datetime as dt
 
 class Env:
 
-    def __init__(self, action_size=4):
+    def __init__(self, action_size=4, stochastic_wind=False):
 
         self.action_size = action_size    # 4 for four move; 8 for king's move
+        self.stochastic_wind = stochastic_wind
         random.seed(0)
         self.dim = (10, 7)
         self.start  = [0, 3]
@@ -63,6 +64,12 @@ move    0:north, 1:east, 2:south, 3:west
 
         self.state[0] += x
         self.state[1] += y + self.wind[state0[0]]   # plus wind
+
+        ### STOCHASTIC WIND IF THERE IS WIND ###
+        # above in 1/3, below in 1/3, and no effect in 1/3
+        if self.stochastic_wind and self.wind[state0[0]] >= 1:
+            self.state[1] += random.randint(0, 2) - 1
+
         r = -1
         is_goal = False
         if self.state == self.goal:
@@ -261,6 +268,7 @@ if __name__ == '__main__':
     dim         = (10, 7)
     num         = 1000
     slide       = 20
+    stochastic_wind = True
 
     now = dt.now()
 
@@ -275,8 +283,12 @@ if __name__ == '__main__':
     #ql_agent    = KingsMoveAgent(epsilon, 9)
     ac_agent    = ActorCriticAgent(dim, epsilon)
 
-    png_dir     = '%s-%s' % (now.strftime('png-%y%m%d-%H%M%S'), agent.action_size)
-    env         = Env(agent.action_size)
+    if stochastic_wind:
+        sw_tag = '-sw'
+    else:
+        sw_tag = ''
+    png_dir     = '%s-%s%s' % (now.strftime('png-%y%m%d-%H%M%S'), agent.action_size, sw_tag)
+    env         = Env(agent.action_size, stochastic_wind)
     w = []
     s_step_list, step_std_list = [], []
 
