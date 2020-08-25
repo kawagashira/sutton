@@ -288,8 +288,6 @@ if __name__ == '__main__':
     gagent      = FourMoveAgent(dim, 0)     # Greedy
     gql_agent   = FourMoveAgent(dim, 0)     # Greedy
     ac_agent    = ActorCriticAgent(dim, epsilon)
-    print (agent.q)
-    exit()
     w = []
     num = 500
     for n in range(num):
@@ -327,9 +325,18 @@ if __name__ == '__main__':
     #agent.find_policy()
     agent.show_arrow()
     #agent.show_max_q()
+
     print ('Q_LEARNING: LAST POLICY')
     #ql_agent.find_policy()
     ql_agent.show_arrow()
+
+    print ('GREEDY SARSA: LAST POLICY')
+    gagent.show_arrow()
+
+    print ('GREEDY Q_LEARNING: LAST POLICY')
+    #ql_agent.find_policy()
+    gql_agent.show_arrow()
+
     print ('ACTOR-CRITIC: LAST POLICY')
     #ac_agent.find_policy()
     #ac_agent.show_arrow()

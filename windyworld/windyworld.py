@@ -92,10 +92,17 @@ move    0:north, 1:east, 2:south, 3:west
 
 class AbstractAgent:
 
-    def __init__(self, dim, epsilon):
+    def __init__(self, dim, epsilon, initializer='random'):
 
-        self.q = np.zeros((dim[0], dim[1], self.action_size))
         self.epsilon = epsilon
+        self.initialize(dim, initializer)
+
+    def initialize(self):
+
+        if self.initializer == 'zero':
+            self.q = np.zeros((self.dim[0], self.dim[1], self.action_size))
+        elif self.initializer == 'random':
+            self.q = np.random.rand(self.dim[0], self.dim[1], self.action_size)
 
     def e_greedy(self, state):
 
@@ -146,27 +153,29 @@ class AbstractAgent:
 
 class FourMoveAgent(AbstractAgent):
 
-    def __init__(self, dim, epsilon):
+    def __init__(self, dim, epsilon, initializer='random'):
 
         self.dim    = dim
         self.action_size = 4
-        self.q = np.zeros((dim[0], dim[1], self.action_size))
         self.epsilon = epsilon
+        self.initializer = initializer
         self.AGENTTYPE = 4
         self.DIRECTION   = {0: 'U', 1:'R', 2:'D', 3:'L'}
         self.ARROW       = {0: '^', 1:'>', 2:'v', 3:'<'}
+        self.initialize()
             
 
 class KingsMoveAgent(AbstractAgent):
 
-    def __init__(self, epsilon, action_size=8):
+    def __init__(self, epsilon, action_size=8, initiazlier='random'):
 
         self.action_size = action_size
-        self.q = np.zeros((10, 7, self.action_size))
         self.epsilon = epsilon
         #self.DIRECTION = {0: 'U', 1:'r', 2:'R', 3:'e', 4: 'D', 5:'w', 6:'L', 7:'l'}
         self.DIRECTION  = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️', 8:'🔄'}
         self.ARROW     = {0: '⬆️', 1:'↗️', 2:'➡️', 3:'↘️', 4: '⬇️', 5:'↙️', 6:'⬅️', 7:'↙️', 8:'🔄'}
+        self.initialize(dim, initializer)
+        self.q = np.zeros((10, 7, self.action_size))
             
             
 class ActorCriticAgent:
