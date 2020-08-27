@@ -7,7 +7,7 @@ import random
 import numpy as np
 import pandas as pd
 import smooth
-from windyworld.windyworld import FourMoveAgent
+from windyworld.windyworld import FourMoveAgent, softmax
 
 class Cliff:
 
@@ -33,7 +33,7 @@ class Cliff:
         self.map[state0[0], state0[1]] = move
         self.state[0] += x
         self.state[1] += y
-        r = rewards[1]
+        r = self.rewards[1]
         is_goal = False
         if self.state == self.goal:
             r = self.rewards[0]      # Success
@@ -152,6 +152,7 @@ class Agent:
                 for i in range(self.dim[0])] for j in range(self.dim[1])])
         print (np.flipud(np.array(m)))
 
+
 class ActorCriticAgent:
 
     def __init__(self, dim, epsylon):
@@ -175,6 +176,7 @@ class ActorCriticAgent:
         m = [[np.argmax(self.policy[i,j]) for i in range(self.dim[0])] for j in range(self.dim[1])]
         #print (np.flipud(np.array(m)))
 
+
 def sarsa(env, agent, rewards, alpha, gamma):
     """
     rewards     [goal, transition, fail]
@@ -188,7 +190,37 @@ def sarsa(env, agent, rewards, alpha, gamma):
     is_goal = False
     while not is_goal:        # AN EPISODE
         i += 1
-        #print ('sarsa', i)
+        s0 = env.state.copy()
+        r, is_goal = env.act(a)
+        R += r
+        if r == rewards[-1]:    # if off the cliff
+            env.reset_map()
+        else:
+            env.map[s0[0], s0[1]] = a
+        a1 = agent.e_greedy(env.state)
+        #value = agent.get_q(s0, a)
+        agent.q[s0[0], s0[1], a] = agent.get_q(s0, a)   \
+            + alpha * (r + gamma * agent.get_q(env.state, a1) - agent.get_q(s0, a))
+        a = a1
+        if is_goal or R < -10000:
+            break
+    return i, R
+
+
+def expected_sarsa(env, agent, rewards, alpha, gamma):
+    """
+    Expected Sarsa Algorithm
+    rewards     [goal, transition, fail]
+    """
+    ### SARSA ###
+    env.reset()
+    a = agent.e_greedy(env.state)
+    r = rewards[1]
+    R = 0
+    i = 0
+    is_goal = False
+    while not is_goal:        # AN EPISODE
+        i += 1
         s0 = env.state.copy()
         r, is_goal = env.act(a)
         R += r
@@ -198,11 +230,17 @@ def sarsa(env, agent, rewards, alpha, gamma):
             env.map[s0[0], s0[1]] = a
         a1 = agent.e_greedy(env.state)
         value = agent.get_q(s0, a)
-        agent.q[s0[0], s0[1], a] = agent.get_q(s0, a) + alpha * (r + gamma * agent.get_q(env.state, a1) - agent.get_q(s0, a))
+        #print (np.inner(softmax(agent.q[env.state[0], env.state[1], :]), agent.q[env.state[0], env.state[1], :]))
+        target = r + np.inner(
+                    softmax(agent.q[env.state[0], env.state[1], :]),
+                    agent.q[env.state[0], env.state[1], :])
+        agent.q[s0[0], s0[1], a] = agent.get_q(s0, a) \
+                + alpha * (target - agent.get_q(s0, a))
         a = a1
         if is_goal or R < -10000:
             break
     return i, R
+
 
 def q_learn(env, agent, rewards, alpha, gamma):
 
@@ -216,7 +254,7 @@ def q_learn(env, agent, rewards, alpha, gamma):
         i += 1
         #print ('q-learn', i, R, agent.epsilon)
         s0 = env.state.copy()
-        a = ql_agent.e_greedy(env.state)   
+        a = agent.e_greedy(env.state)   
         r, is_goal = env.act(a)
         R += r
         if r == rewards[-1]:    # ON THE CLIFF
@@ -225,7 +263,6 @@ def q_learn(env, agent, rewards, alpha, gamma):
             env.map[s0[0], s0[1]] = a
         value = agent.q[s0[0], s0[1], a]
         agent.q[s0[0], s0[1], a] = agent.get_q(s0, a) + alpha * (r + gamma * agent.max_q(env.state) - agent.get_q(s0, a))
-        #if is_goal or r == -100 or R < -10000:
         if is_goal or R < -10000:
             break
     return i, R
@@ -261,88 +298,155 @@ def actor_critic(env, agent, rewards, alpha, gamma):
 def show_graph(df, png_file):
 
     import matplotlib.pyplot as plt
-    plt.plot(df['smoothed_s_r'], label='Sarsa')
-    plt.plot(df['smoothed_ql_r'], label='Q-Learning')
+    plt.plot(df['smoothed_s_r'],    label='Sarsa')
+    plt.plot(df['smoothed_es_r'],   label='Expected Sarsa')
+    plt.plot(df['smoothed_ql_r'],   label='Q-Learning')
     #plt.plot(df['s_r'], label='Sarsa')
     #plt.plot(df['ql_r'], label='Q-Learning')
     #plt.plot(df['smoothed_ac_r'], label='Actor-Critic')
     #plt.plot(df['smoothed_gs_r'], label='Greedy Sarsa')
     #plt.plot(df['smoothed_gql_r'], label='Greedy Q-Learning')
-    plt.ylim((-100,0))
+    plt.ylim((-140,0))
     plt.legend()
     plt.show()
 
 
 ###
-if __name__ == '__main__':
+def main(num, epsilon, alpha, gamma, smooth_size, show_arrow=False):
 
-    epsilon     = 0.1
-    alpha       = 0.5
-    gamma       = 1.0
-    wl          = 20    # Window Length for Smomothing
+    dim         = (12, 4)
+    rewards     = [0, -1, -100]
 
-    dim         = (12, 4); rewards = [0, -1, -100]
     env         = Cliff(dim, rewards)
     agent       = FourMoveAgent(dim, 0.1)
+    es_agent    = FourMoveAgent(dim, 0.1)
     ql_agent    = FourMoveAgent(dim, 0.1)
     gagent      = FourMoveAgent(dim, 0)     # Greedy
     gql_agent   = FourMoveAgent(dim, 0)     # Greedy
     ac_agent    = ActorCriticAgent(dim, epsilon)
     w = []
-    num = 500
+    s_list, es_list, ql_list = [], [], []
+
     for n in range(num):
-
         s_step, s_r     = sarsa(env, agent, rewards, alpha, gamma)
+        es_step, es_r   = expected_sarsa(env, es_agent, rewards, alpha, gamma)
         ql_step, ql_r   = q_learn(env, ql_agent, rewards, alpha, gamma)
-        gs_step, gs_r   = sarsa(env, gagent, rewards, alpha, gamma)
-        gql_step, gql_r = q_learn(env, gql_agent, rewards, alpha, gamma)
-        ac_step, ac_r   = actor_critic(env, ac_agent, rewards, alpha, gamma)
+        #gs_step, gs_r   = sarsa(env, gagent, rewards, alpha, gamma)
+        #gql_step, gql_r = q_learn(env, gql_agent, rewards, alpha, gamma)
+        #ac_step, ac_r   = actor_critic(env, ac_agent, rewards, alpha, gamma)
+        s_list.append(s_r)
+        es_list.append(es_r)
+        ql_list.append(ql_r)
         w.append([n + 1,
-            s_step, s_r, ql_step, ql_r,
-            gs_step, gs_r, gql_step, gql_r,
-            ac_step, ac_r])
+            s_step, s_r, es_step, es_r, ql_step, ql_r])
+            #gs_step, gs_r, gql_step, gql_r,
+            #ac_step, ac_r])
 
-        if n % 10 == 0:
-            #gql_agent.show_arrow()
-            print ('SARSA: POLICY %d' % n)
-            agent.show_arrow()
-
+    """
     df = pd.DataFrame(
             w,
             columns = ['episode_id',
-                's_step', 's_r', 'ql_step', 'ql_r',
-                'gs_step', 'gs_r', 'gql_step', 'gql_r',
-                'ac_step', 'ac_r'])
+                's_step', 's_r', 'es_step', 'es_r', 'ql_step', 'ql_r'])
+                #'gs_step', 'gs_r', 'gql_step', 'gql_r',
+                #'ac_step', 'ac_r'])
     p = np.array(df['s_step'])
     p1 = smooth.smooth(np.array(df['s_step']))
-    df['smoothed_s_r']  = smooth.smooth(np.array(df['s_r']), window_len=wl)[:num]
-    df['smoothed_ql_r'] = smooth.smooth(np.array(df['ql_r']), window_len=wl)[:num]
-    df['smoothed_ac_r'] = smooth.smooth(np.array(df['ac_r']), window_len=wl)[:num]
-    df['smoothed_gs_r'] = smooth.smooth(np.array(df['gs_r']), window_len=wl)[:num]
-    df['smoothed_gql_r']= smooth.smooth(np.array(df['gql_r']), window_len=wl)[:num]
+    df['smoothed_s_r']  = smooth.smooth(np.array(df['s_r']), window_len=smooth_size)[:num]
+    df['smoothed_es_r'] = smooth.smooth(np.array(df['es_r']), window_len=smooth_size)[:num]
+    df['smoothed_ql_r'] = smooth.smooth(np.array(df['ql_r']), window_len=smooth_size)[:num]
+    #df['smoothed_ac_r'] = smooth.smooth(np.array(df['ac_r']), window_len=wl)[:num]
+    #df['smoothed_gs_r'] = smooth.smooth(np.array(df['gs_r']), window_len=wl)[:num]
+    #df['smoothed_gql_r']= smooth.smooth(np.array(df['gql_r']), window_len=wl)[:num]
+    """
 
-    print ('SARSA: LAST POLICY')
-    #agent.find_policy()
-    agent.show_arrow()
-    #agent.show_max_q()
+    if show_arrow:
+        print ('SARSA: LAST POLICY')
+        agent.show_arrow()
 
-    print ('Q_LEARNING: LAST POLICY')
-    #ql_agent.find_policy()
-    ql_agent.show_arrow()
+        print ('EXPECTED SARSA: LAST POLICY')
+        es_agent.show_arrow()
 
-    print ('GREEDY SARSA: LAST POLICY')
-    gagent.show_arrow()
+        print ('Q_LEARNING: LAST POLICY')
+        #ql_agent.find_policy()
+        ql_agent.show_arrow()
 
-    print ('GREEDY Q_LEARNING: LAST POLICY')
-    #ql_agent.find_policy()
-    gql_agent.show_arrow()
+        """
+        print ('GREEDY SARSA: LAST POLICY')
+        gagent.show_arrow()
 
-    print ('ACTOR-CRITIC: LAST POLICY')
-    #ac_agent.find_policy()
-    #ac_agent.show_arrow()
-    #df_ql = pd.DataFrame(w_ql)
+        print ('GREEDY Q_LEARNING: LAST POLICY')
+        #ql_agent.find_policy()
+        gql_agent.show_arrow()
+        """
 
+    """
     print (df)
     png_file = 'graph_cliff_walking.png'
     show_graph(df, png_file)
+    """
+
+    #return np.mean(np.array(s_list)), np.mean(np.array(es_list)), np.mean(np.array(ql_list))
+    return (
+        np.mean(np.array(s_list)),
+        np.mean(np.array(es_list)),
+        np.mean(np.array(ql_list)))
+
+
+def run(run_num, num, epsilon, alpha, gamma, smooth_size, show_arrow=False):
+
+    ### INTERIM ###
+    w = []
+    for i in range(run_num):
+        rewards = list(main(num, epsilon, alpha, gamma, smooth_size))
+        print (i+1, '%.2f' % alpha, rewards)
+        w.append(rewards)
+    mean = list(np.array(w).mean(axis=0))
+    mean.insert(0, alpha)
+    print (mean)
+    #interim_mean_list.append(interim_mean)
+    return mean
+
+
+def show_mean_reward(rewards, rewards2=None):
+
+    import matplotlib.pyplot as plt
+    columns = ['alpha_nr', 's_reward_nr', 'es_reward_nr', 'ql_reward_nr']
+
+    if rewards2 is not None:
+        df2 = pd.DataFrame(rewards2, columns = columns)
+        print (df2)
+        plt.plot(df2['alpha_nr'], df2['s_reward_nr'],    linestyle='-', label='Asymptotic Sarsa')
+        plt.plot(df2['alpha_nr'], df2['es_reward_nr'],   linestyle='-', label='Asymptotic Expected Sarsa')
+        plt.plot(df2['alpha_nr'], df2['ql_reward_nr'],   linestyle='-', label='Asymptotic Q-Learning')
+
+    df = pd.DataFrame(rewards, columns = columns)
+    print (df)
+    plt.plot(df['alpha_nr'], df['s_reward_nr'],    linestyle=':', label='Interim Sarsa')
+    plt.plot(df['alpha_nr'], df['es_reward_nr'],   linestyle=':', label='Interim Expected Sarsa')
+    plt.plot(df['alpha_nr'], df['ql_reward_nr'],   linestyle=':', label='Interim Q-Learning')
+    #plt.ylim((-140,0))
+    plt.legend()
+    plt.show()
+
+
+if __name__ == '__main__':
+
+    epsilon     = 0.1
+    gamma       = 1.0
+    smooth_size = 10
+    interim_run, interim_num = 10, 4
+    asympto_run, asympto_num = 4, 10
+
+    interim_rewards, asympto_rewards = [], []
+    for i in range(10, 105, 5):
+        alpha = float(i) / 100   
+
+        ### INTERIM ###
+        rewards = run(interim_run, interim_num, epsilon, alpha, gamma, smooth_size)
+        interim_rewards.append(rewards)
+        print (rewards)
+        ### ASYMPTOTIC ###
+        rewards = run(asympto_run, asympto_num, epsilon, alpha, gamma, smooth_size)
+        asympto_rewards.append(rewards)
+    show_mean_reward(interim_rewards, asympto_rewards)
 

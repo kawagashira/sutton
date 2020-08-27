@@ -123,6 +123,13 @@ class AbstractAgent:
 
         return self.q[s[0], s[1], a]
 
+    '''
+    def get_prob(self, s):
+
+        print (self.q[s[0], s[1], :])
+        return None
+    '''
+
     def show_value(self, png_file):
 
         m = np.max(self.q, axis=2)
@@ -149,6 +156,11 @@ class AbstractAgent:
 
         m = ([[np.argmax(self.q[i,j,:]) for i in range(self.dim[0])] for j in range(self.dim[1])])
         print (np.flipud(np.array(m)))
+
+
+def softmax(x):
+
+    return np.exp(x) / np.sum(np.exp(x))
 
 
 class FourMoveAgent(AbstractAgent):
