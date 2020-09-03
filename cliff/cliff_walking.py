@@ -6,7 +6,9 @@
 import random
 import numpy as np
 import pandas as pd
-import smooth
+#import smooth
+import sys
+sys.path.append('..')
 from windyworld.windyworld import FourMoveAgent, softmax
 
 class Cliff:
@@ -340,6 +342,9 @@ def main(num, epsilon, alpha, gamma, smooth_size, show_arrow=False):
         w.append([n + 1,
             s_step, s_r, es_step, es_r, ql_step, ql_r])
             #gs_step, gs_r, gql_step, gql_r,
+
+        if (n+1) % 100 == 0:
+            print (n+1, '%.2f' % alpha, s_r, es_r, ql_r)
             #ac_step, ac_r])
 
     """
@@ -398,12 +403,9 @@ def run(run_num, num, epsilon, alpha, gamma, smooth_size, show_arrow=False):
     w = []
     for i in range(run_num):
         rewards = list(main(num, epsilon, alpha, gamma, smooth_size))
-        print (i+1, '%.2f' % alpha, rewards)
         w.append(rewards)
     mean = list(np.array(w).mean(axis=0))
     mean.insert(0, alpha)
-    print (mean)
-    #interim_mean_list.append(interim_mean)
     return mean
 
 
@@ -415,16 +417,16 @@ def show_mean_reward(rewards, rewards2=None):
     if rewards2 is not None:
         df2 = pd.DataFrame(rewards2, columns = columns)
         print (df2)
-        plt.plot(df2['alpha_nr'], df2['s_reward_nr'],    linestyle='-', label='Asymptotic Sarsa')
-        plt.plot(df2['alpha_nr'], df2['es_reward_nr'],   linestyle='-', label='Asymptotic Expected Sarsa')
-        plt.plot(df2['alpha_nr'], df2['ql_reward_nr'],   linestyle='-', label='Asymptotic Q-Learning')
+        plt.plot(df2['alpha_nr'], df2['s_reward_nr'],    color='b', linestyle='-', label='Asymptotic Sarsa')
+        plt.plot(df2['alpha_nr'], df2['es_reward_nr'],   color='r', linestyle='-', label='Asymptotic Expected Sarsa')
+        plt.plot(df2['alpha_nr'], df2['ql_reward_nr'],   color='k', linestyle='-', label='Asymptotic Q-Learning')
 
     df = pd.DataFrame(rewards, columns = columns)
     print (df)
-    plt.plot(df['alpha_nr'], df['s_reward_nr'],    linestyle=':', label='Interim Sarsa')
-    plt.plot(df['alpha_nr'], df['es_reward_nr'],   linestyle=':', label='Interim Expected Sarsa')
-    plt.plot(df['alpha_nr'], df['ql_reward_nr'],   linestyle=':', label='Interim Q-Learning')
-    #plt.ylim((-140,0))
+    plt.plot(df['alpha_nr'], df['s_reward_nr'],    color='b', linestyle=':', label='Interim Sarsa')
+    plt.plot(df['alpha_nr'], df['es_reward_nr'],   color='r', linestyle=':', label='Interim Expected Sarsa')
+    plt.plot(df['alpha_nr'], df['ql_reward_nr'],   color='k', linestyle=':', label='Interim Q-Learning')
+    plt.ylim((-140,0))
     plt.legend()
     plt.show()
 
@@ -434,8 +436,8 @@ if __name__ == '__main__':
     epsilon     = 0.1
     gamma       = 1.0
     smooth_size = 10
-    interim_run, interim_num = 10, 4
-    asympto_run, asympto_num = 4, 10
+    interim_run, interim_num = 5000, 100
+    asympto_run, asympto_num = 10, 10000
 
     interim_rewards, asympto_rewards = [], []
     for i in range(10, 105, 5):
@@ -444,9 +446,12 @@ if __name__ == '__main__':
         ### INTERIM ###
         rewards = run(interim_run, interim_num, epsilon, alpha, gamma, smooth_size)
         interim_rewards.append(rewards)
-        print (rewards)
+        print ('INTERIM:', interim_rewards)
+
         ### ASYMPTOTIC ###
         rewards = run(asympto_run, asympto_num, epsilon, alpha, gamma, smooth_size)
         asympto_rewards.append(rewards)
+        print ('ASYMPTO:', asympto_rewards)
+
     show_mean_reward(interim_rewards, asympto_rewards)
 
