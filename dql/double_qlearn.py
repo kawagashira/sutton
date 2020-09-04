@@ -30,7 +30,6 @@ move    0:right, 1:left
     """
     def act(self, move):
 
-        #print ('s, act(move)', self.state, move)
         if self.state == 1:     # A
             if move == 0:       # right
                 self.state = 0  # TERMINAL
@@ -53,7 +52,6 @@ class DoubleMDP:
         self.epsilon    = epsilon
 
         if initializer == 'random':
-            #print ('initializer: random')
             self.q = np.random.random((2, self.state_size, self.action_size)) - 0.5
         elif initializer == 'zero':
             self.q = np.zeros((2, self.state_size, self.action_size))
@@ -64,8 +62,6 @@ class DoubleMDP:
             a = random.randint(0, 1)
             return a
         else:
-            #print ('greedy')
-            #print (self.q[:, state, :])
             a = np.argmax(np.sum(self.q[:, state, :], axis=0))
             return (np.argmax(np.sum(self.q[:, state, :], axis=0)))
 
@@ -79,29 +75,30 @@ class DoubleMDP:
 
 class SimpleMDP:
 
-    def __init__(self, dim, epsilon, initializer='random'):
+    def __init__(self, state_size, action_size, epsilon, initializer='random'):
 
-        self.dim        = dim
+        self.dim     = state_size
         self.epsilon = epsilon
+
         if initializer == 'random':
-            self.q = np.random((2, self.dim, self.action_size))
+            self.q = np.random.random((state_size, action_size)) - 0.5
         elif initializer == 'zero':
-            self.q = np.zeros((2, self.dim, self.action_size))
+            self.q = np.zeros((state_size, action_size))
 
     def e_greedy(self, state):
 
         if random.random() < self.epsilon:     # RANDOM
-            return random.randint(0, self.action_size - 1)
+            return random.randint(0, 1)
         else:
-            return np.argmax(self.q[state[0], state[1], :])
+            return np.argmax(self.q[state, :])
 
     def max_q(self, state):
 
-        return max(self.q[state[0], state[1], :])
+        return max(self.q[state, :])
 
-    def __getitem__(self, s, a):
+    def __getitem__(self, s):
 
-        return self.q[s[0], s[1], a]
+        return self.q[s[0], s[1]]
 
     def get_q(self, s, a):
 
@@ -141,36 +138,23 @@ def softmax(x):
     return np.exp(x) / np.sum(np.exp(x))
 
 
-class FourMoveAgent:
-
-    def __init__(self, dim, epsilon, initializer='random'):
-
-        self.dim    = dim
-        self.action_size = 4
-        self.epsilon = epsilon
-        self.initializer = initializer
-        self.AGENTTYPE = 4
-        self.DIRECTION   = {0: 'U', 1:'R', 2:'D', 3:'L'}
-        self.ARROW       = {0: '^', 1:'>', 2:'v', 3:'<'}
-        self.initialize()
-            
 def q_learn(env, agent, alpha, gamma):
 
     ### Q-LEARNING ###
     env.reset()
-    R = 0
     i = 0
-    r = -1
     is_goal = False
+    actions = []
     while not is_goal:
         i += 1
-        s0 = env.state.copy()
+        s0 = copy.copy(env.state)
         a = ql_agent.e_greedy(env.state)   
+        if env.state == 1:
+            actions.append(a)
         r, is_goal = env.act(a)
-        R += r
-        value = agent.q[s0[0], s0[1], a]
-        agent.q[s0[0], s0[1], a] = agent.get_q(s0, a) +     \
-            alpha * (r + gamma * agent.max_q(env.state) - agent.get_q(s0, a))
+        value = agent[s0, a]
+        agent.q[s0, a] = agent[s0, a] +     \
+            alpha * (r + gamma * agent.max_q(env.state) - agent[s0, a])
     return actions
         
 
@@ -179,7 +163,6 @@ def double_q_learn(env, agent, alpha, gamma):
     ### Q-LEARNING ###
     env.reset()
     i = 0
-    r = -1
     is_goal = False
     actions = []
     while not is_goal:
@@ -189,7 +172,6 @@ def double_q_learn(env, agent, alpha, gamma):
         if env.state == 1:   # When in state A
             actions.append(a)
         r, is_goal = env.act(a)
-        #R += r
         if random.random() < 0.5:
             j = 0
         else:
@@ -209,7 +191,9 @@ def show_left_rate(d, png_file):
     import matplotlib.pyplot as plt
 
     #plt.plot(df['episode_nr'], df['left_nr'])
-    plt.plot(d)
+    plt.plot(d[:, 0], label='Q-learning')
+    plt.plot(d[:, 1], label='Double Q-learning')
+    plt.legend(loc='upper right')
     plt.savefig(png_file)
     plt.show()
     plt.close('all')
@@ -225,6 +209,7 @@ if __name__ == '__main__':
     state_size  = 4
     action_size = 2
     num         = 300
+    repeat      = 100
     stochastic_wind = True
 
     now = dt.now()
@@ -233,7 +218,6 @@ if __name__ == '__main__':
     png_dir     = now.strftime('png-%y%m%d-%H%M%S')
     env         = Env(action_size)
     s_step_list, step_std_list = [], []
-    action_list = []
 
     if os.path.isdir(png_dir):
         shutil.rmtree(png_dir)
@@ -241,29 +225,27 @@ if __name__ == '__main__':
     step_graph_file = '%s/step_list.png' % png_dir
 
     data = []
-    for m in range(400):
-        dql_agent = DoubleMDP(state_size, action_size, epsilon)
+    for m in range(repeat):
+        ql_agent    = SimpleMDP(state_size, action_size, epsilon)
+        dql_agent   = DoubleMDP(state_size, action_size, epsilon)
         w = []
         for n in range(num):
-            actions = double_q_learn(env, dql_agent, alpha, gamma)
-            action_list += actions
-            left_mean = np.mean(actions)
-            w.append(left_mean)
-            #print ('---', n+1, 'actions', actions, left_mean)
+            ### Q-LEARNING ###
+            q_actions = q_learn(env, ql_agent, alpha, gamma)
+            q_left_mean = np.mean(q_actions)
+
+            ### DOUBLE Q-LEARNING ###
+            dq_actions = double_q_learn(env, dql_agent, alpha, gamma)
+            dq_left_mean = np.mean(dq_actions)
+
+            w.append((q_left_mean, dq_left_mean))
+
         print ('m', m)
         data.append(w)
-        """
-        print ('%3d %3d %2.2f %2.2f' % (n+1, s_step, step_slide.mean(), step_slide.std()), s_a_str)
-        if (n+1) % 10 == 0:
-            png_file = '%s/value-%03d.png' % (png_dir, n+1)
-            agent.show_value(png_file)
-            agent.show_arrow()
-            show_step_graph(s_step_list, step_std_list, step_graph_file)
-        """
     data = np.array(data)
     #print (data)
     d = np.mean(data, axis=0)
-    print (d)
+    #print (d)
     #df = pd.DataFrame(d)
     #print (df)
-    show_left_rate(d, 'left.png')
+    show_left_rate(d, '%s/left.png' % png_dir)
