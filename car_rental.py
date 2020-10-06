@@ -4,7 +4,7 @@
 #
 
 import random
-#import math
+import copy
 import numpy as np
 from math import exp, factorial
 
@@ -36,15 +36,14 @@ class Env:
 
     def transfer(self, a):
 
-        old_state = self.state
         moving = 0
         if a > 0:
             moving = min(a, self.state[0])
         elif a < 0:
             moving = -min(-a, self.state[1])
-        self.state[0] -= moving
-        self.state[1] += moving
-        self.update()
+        self.state[0] -= moving     # Cars are moved
+        self.state[1] += moving     # from loc1 to loc2
+        #self.update()
         return self.state, moving, abs(moving) * -2     # 2 dolloars for each transfer
 
     def to_return(self, car):
@@ -65,7 +64,7 @@ class Env:
         print ('state', old_state, '-', np.array(car), '=', self.state, \
             'rentable', rentable)
         """
-        self.update()
+        #self.update()
         return rentable, reward
 
 
@@ -76,8 +75,8 @@ class Agent:
         self.dim = dim
         self.move_range = move_range
         self.max_move = 5
+        #self.max_move = 20
         self.value = np.zeros(dim, np.float32)
-        action_size = 2 * self.max_move + 1
         self.policy = np.zeros(dim,  np.int8)
 
     def random_act(self, min_move, max_move):
@@ -94,59 +93,74 @@ class Agent:
 
         return self.policy[s[0], s[1]]
 
+    def show_best_policy(self):
+
+        print (self.value)
+        w = [[np.argmax(self.value[i,j,:] - self.move_range[1])
+                for i in range(self.dim[0])]
+                    for j in range(self.dim[1])]
+        print (w)
+
     def __getitem__(self, s):
 
         return self.value[s[0], s[1]]
 
 
-def policy_evaluation(agent, env, theta, gamma):
+def policy_evaluation(agent, env, gamma, theta):
 
-    delta = 0.0
     rep = 0
     p = Poisson(env.mean_return, env.mean_request)
-    for k in range(3):
+    for k in range(10):
+        delta = 0.0
         rep += 1
         print ('policy evaluation', rep)
-        prob_list = []
         ### FOR ALL STATES ###
+        #new_value = copy.copy(agent.value)
         for i in range(env.dim[0]):
             for j in range(env.dim[1]):
-                env.state = [i, j]
                 value = agent.value[i,j]
                 action = agent.get_policy([i,j])
                 ### SUM OF P<s,a,s'> [R<s,pi(s),s'> + gamma V(s')] ###
+                env.state = [i, j]
                 curr_value = p.expected_value(action, agent, env, gamma)
                 agent.value[i, j] = curr_value
-        delta = max(delta, abs(value - curr_value))
-        print ('delta', delta, value, curr_value)
-        print (agent.value)
+                #new_value[i, j] = curr_value
+                delta = max(delta, abs(value - curr_value))
+                #print ((i, j), 'a=%d' % action, 'delta', delta, value, curr_value)
+        #agent.value = new_value     # Get back the values
+        print ('delta', delta)
+        if delta < theta:
+            break
+        #agent.show_best_policy()
+        #print (agent.value)
 
 
-def policy_improvement(agent, env):
+def policy_improvement(agent, env, gamma):
 
     p = Poisson(env.mean_return, env.mean_request)
     print ('policy improvement')
     policy_stable = True
     for i in range(agent.dim[0]):
         for j in range(agent.dim[1]):
-            old_action = agent.get_policy([i,j])
+            old_action = agent.get_policy([i, j])
             w = []
             for action in range(agent.move_range[0], agent.move_range[1] + 1):
-                env.state = [i,j]
+                env.state = [i, j]
                 value = p.expected_value(action, agent, env, gamma)
                 w.append(value)
             k = np.argmax(w)
-            pi_s = k - agent.move_range[1]
-            print (i, j, 'action', old_action, '->', pi_s, old_action != pi_s)
-            agent.policy[i,j] = pi_s
-            if old_action != pi_s:
+            pi = k - agent.move_range[1]
+            print (i, j, 'action', old_action, '->', pi, old_action == pi)
+            agent.policy[i, j] = pi
+            if old_action != pi:
                 policy_stable = False
+    print (np.flipud(agent.policy))
     return policy_stable
 
 
 class Poisson:
 
-    def __init__(self, mean_return, mean_request, max_car=5):
+    def __init__(self, mean_return, mean_request, max_car=10):
 
         self.max_car = max_car
         self.ret_prob_1 = [poisson(n, mean_return[0]) for n in range(max_car+1)]
@@ -157,62 +171,28 @@ class Poisson:
 
     def expected_value(self, action, agent, env, gamma):
     
-        old_state = env.state
+        #old_state = env.state
         next_state, real_action, transfer_cost = env.transfer(action)
         curr_value = 0.0
-        for ret_1 in range(self.max_car):
-            for ret_2 in range(self.max_car):
-                for req_1 in range(self.max_car):
-                    for req_2 in range(self.max_car):
-                        env.state = old_state
+        for ret_1 in range(self.max_car + 1):
+            for ret_2 in range(self.max_car + 1):
+                for req_1 in range(self.max_car + 1):
+                    for req_2 in range(self.max_car + 1):
+                        #env.state = copy.copy(old_state)
+                        env.state = copy.copy(next_state)
                         env.to_return((ret_1, ret_2))
                         rentable, credit = env.to_request((req_1, req_2))
+                        """
+                        print (old_state, 'a=%d' % action, env.state,  \
+                            (ret_1, ret_2), (req_1, req_2),     \
+                            'cost', transfer_cost, 'credit', credit)
+                        """
                         curr_value +=       \
                             self.ret_prob_1[ret_1] * self.ret_prob_2[ret_2] *     \
                             self.req_prob_1[req_1] * self.req_prob_2[req_2] *   \
-                            (transfer_cost + sum(credit) + gamma * agent[next_state])
-                        """
-                    print (old_state, 'a=%d' % action, env.state,    \
-                        (returned_1, returned_2),   \
-                        (requested_1, requested_2),
-                        transfer_cost, 'credit', credit)
-                        """
+                            (transfer_cost + sum(credit) + gamma * agent[env.state])
         return curr_value
 
-
-'''
-def expected_value(action, agent, env, gamma):
-
-    max_car = 5
-    prob_list = []
-    old_state = env.state
-    next_state, real_action, transfer_cost = env.transfer(action)
-    curr_value = 0.0
-    for returned_1 in range(max_car):
-        returned_prob_1 = poisson(returned_1, env.mean_return[0])
-        for returned_2 in range(max_car):
-            returned_prob_2 = poisson(returned_2, env.mean_return[1])
-            for requested_1 in range(max_car):
-                requested_prob_1 = poisson(requested_1, env.mean_request[0])
-                for requested_2 in range(max_car):
-                    env.state = old_state
-                    requested_prob_2 = poisson(requested_2, env.mean_request[1])
-                    env.to_return((returned_1, returned_2))
-                    rentable, credit = env.to_request((requested_1, requested_2))
-                    curr_value +=       \
-                        returned_prob_1 * returned_prob_2 *     \
-                        requested_prob_1 * requested_prob_2 *   \
-                        (transfer_cost + sum(credit) + gamma * agent[next_state])
-                    """
-                    print (old_state, 'a=%d' % action, env.state,    \
-                        (returned_1, returned_2),   \
-                        (requested_1, requested_2),
-                        transfer_cost, 'credit', credit)
-                    """
-        prob_list.append(returned_prob_1)
-    #print ('prob_list', sum(prob_list))
-    return curr_value
-'''
 
 def poisson(n, lambda_):
 
@@ -221,7 +201,7 @@ def poisson(n, lambda_):
 
 
 gamma = 0.9
-theta = 0.001
+theta = 0.0001
 dim = (21,21)
 mean_return     = [3,2]
 mean_request    = [3,4]
@@ -229,10 +209,9 @@ env = Env(dim, mean_return, mean_request)
 agent = Agent(dim)
 #agent.randomize_policy()
 policy_stable = False
-for rep in range(10):
+for rep in range(20):
     print ('rep', rep+1)
-    policy_evaluation(agent, env, theta, gamma)
-    policy_stable = policy_improvement(agent, env)
-    print (agent.policy)
+    policy_evaluation(agent, env, gamma, theta)
+    policy_stable = policy_improvement(agent, env, gamma)
     if policy_stable:
         break
