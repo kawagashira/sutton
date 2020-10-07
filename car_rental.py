@@ -6,6 +6,11 @@
 import random
 import copy
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib as mpl
+mpl.use('Agg')
+from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 from math import exp, factorial
 
 class Env:
@@ -105,6 +110,18 @@ class Agent:
 
         return self.value[s[0], s[1]]
 
+    def plot_value(self):
+
+        x1 = np.linspace(self.move_range[0], self.move_range[1])
+        x2 = np.linspace(self.move_range[0], self.move_range[1])
+        X1, X2 = np.meshgrid(x1, x2)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        surf = ax.plot_surface(X1, X2, self.value, cmap='bwr', linewidth=0)
+        fig.colorbar(surf)
+        ax.set_title("Value")
+        fig.show()
+
 
 def policy_evaluation(agent, env, gamma, theta):
 
@@ -115,7 +132,6 @@ def policy_evaluation(agent, env, gamma, theta):
         rep += 1
         print ('policy evaluation', rep)
         ### FOR ALL STATES ###
-        #new_value = copy.copy(agent.value)
         for i in range(env.dim[0]):
             for j in range(env.dim[1]):
                 value = agent.value[i,j]
@@ -126,7 +142,8 @@ def policy_evaluation(agent, env, gamma, theta):
                 agent.value[i, j] = curr_value
                 #new_value[i, j] = curr_value
                 delta = max(delta, abs(value - curr_value))
-                #print ((i, j), 'a=%d' % action, 'delta', delta, value, curr_value)
+                print ((i, j), 'a=%d' % action, 'v=%.4f %.4f' % (value, curr_value),\
+                    'delta', delta)
         #agent.value = new_value     # Get back the values
         print ('delta', delta)
         if delta < theta:
@@ -150,11 +167,13 @@ def policy_improvement(agent, env, gamma):
                 w.append(value)
             k = np.argmax(w)
             pi = k - agent.move_range[1]
+            #print (w)
             print (i, j, 'action', old_action, '->', pi, old_action == pi)
             agent.policy[i, j] = pi
             if old_action != pi:
                 policy_stable = False
     print (np.flipud(agent.policy))
+    #agent.plot_value()
     return policy_stable
 
 
@@ -199,7 +218,6 @@ def poisson(n, lambda_):
     return (lambda_ ** n) * exp(-lambda_) / factorial(n)
 
 
-
 gamma = 0.9
 theta = 0.0001
 dim = (21,21)
@@ -209,6 +227,7 @@ env = Env(dim, mean_return, mean_request)
 agent = Agent(dim)
 #agent.randomize_policy()
 policy_stable = False
+#agent.plot_value()
 for rep in range(20):
     print ('rep', rep+1)
     policy_evaluation(agent, env, gamma, theta)
