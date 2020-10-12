@@ -41,15 +41,18 @@ class Env:
 
     def transfer(self, a):
 
-        moving = 0
+        action  = 0
         if a > 0:
             moving = min(a, self.state[0])
         elif a < 0:
-            moving = -min(-a, self.state[1])
-        self.state[0] -= moving     # Cars are moved
-        self.state[1] += moving     # from loc1 to loc2
-        #self.update()
-        return self.state, moving, abs(moving) * -2     # 2 dolloars for each transfer
+            action = -min(-a, self.state[1])
+        self.state[0] -= action     # Cars are moved
+        self.state[1] += action     # from loc1 to loc2
+        if BUS_RIDER and action >= 1:
+            cost = abs(action - 1) * -2
+        else:
+            cost = abs(action) * -2
+        return self.state, action, cost     # 2 dolloars for each transfer
 
     def to_return(self, car):
 
@@ -71,6 +74,13 @@ class Env:
         """
         #self.update()
         return rentable, reward
+
+    def to_check_parking_space(self):
+
+        if LIMITED_PARKING_SPACE:
+            return map(lambda x: -4 if (x > 10) else 0, env.state)
+        else:
+            return [0, 0]
 
 
 class Agent:
@@ -142,14 +152,16 @@ def policy_evaluation(agent, env, gamma, theta):
                 agent.value[i, j] = curr_value
                 #new_value[i, j] = curr_value
                 delta = max(delta, abs(value - curr_value))
+                """
                 print ((i, j), 'a=%d' % action, 'v=%.4f %.4f' % (value, curr_value),\
                     'delta', delta)
+                """
         #agent.value = new_value     # Get back the values
         print ('delta', delta)
         if delta < theta:
             break
         #agent.show_best_policy()
-        #print (agent.value)
+        print (np.flipud(agent.value))
 
 
 def policy_improvement(agent, env, gamma):
@@ -179,37 +191,38 @@ def policy_improvement(agent, env, gamma):
 
 class Poisson:
 
-    def __init__(self, mean_return, mean_request, max_car=10):
+    def __init__(self, mean_return, mean_request):
 
-        self.max_car = max_car
-        self.ret_prob_1 = [poisson(n, mean_return[0]) for n in range(max_car+1)]
-        self.ret_prob_2 = [poisson(n, mean_return[1]) for n in range(max_car+1)]
-        self.req_prob_1 = [poisson(n, mean_request[0]) for n in range(max_car+1)]
-        self.req_prob_2 = [poisson(n, mean_request[1]) for n in range(max_car+1)]
+        self.ret_prob_1 = [poisson(n, mean_return[0]) for n in range(POISSON_MAX_CAR+1)]
+        self.ret_prob_2 = [poisson(n, mean_return[1]) for n in range(POISSON_MAX_CAR+1)]
+        self.req_prob_1 = [poisson(n, mean_request[0]) for n in range(POISSON_MAX_CAR+1)]
+        self.req_prob_2 = [poisson(n, mean_request[1]) for n in range(POISSON_MAX_CAR+1)]
         print (sum(self.ret_prob_1))
 
     def expected_value(self, action, agent, env, gamma):
     
-        #old_state = env.state
+        old_state = env.state
         next_state, real_action, transfer_cost = env.transfer(action)
         curr_value = 0.0
-        for ret_1 in range(self.max_car + 1):
-            for ret_2 in range(self.max_car + 1):
-                for req_1 in range(self.max_car + 1):
-                    for req_2 in range(self.max_car + 1):
-                        #env.state = copy.copy(old_state)
+        for ret_1 in range(POISSON_MAX_CAR + 1):
+            for ret_2 in range(POISSON_MAX_CAR + 1):
+                for req_1 in range(POISSON_MAX_CAR + 1):
+                    for req_2 in range(POISSON_MAX_CAR + 1):
                         env.state = copy.copy(next_state)
                         env.to_return((ret_1, ret_2))
                         rentable, credit = env.to_request((req_1, req_2))
+                        parking_cost = env.to_check_parking_space()
                         """
                         print (old_state, 'a=%d' % action, env.state,  \
                             (ret_1, ret_2), (req_1, req_2),     \
-                            'cost', transfer_cost, 'credit', credit)
+                            'trans', transfer_cost, 'parking', list(parking_cost),    \
+                            'credit', credit)
                         """
                         curr_value +=       \
                             self.ret_prob_1[ret_1] * self.ret_prob_2[ret_2] *     \
                             self.req_prob_1[req_1] * self.req_prob_2[req_2] *   \
-                            (transfer_cost + sum(credit) + gamma * agent[env.state])
+                            (transfer_cost + sum(parking_cost) + sum(credit) +  \
+                            gamma * agent[env.state])
         return curr_value
 
 
@@ -219,8 +232,12 @@ def poisson(n, lambda_):
 
 
 gamma = 0.9
-theta = 0.0001
+theta = 0.001
 dim = (21,21)
+#POISSON_MAX_CAR = 5
+POISSON_MAX_CAR = 10
+BUS_RIDER = False; LIMITED_PARKING_SPACE = False
+#BUS_RIDER = True; LIMITED_PARKING_SPACE = True
 mean_return     = [3,2]
 mean_request    = [3,4]
 env = Env(dim, mean_return, mean_request)
