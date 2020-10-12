@@ -1,25 +1,30 @@
 #!/usr/bin/env python
 #
-#                            carrental.py
+#                            car_rental.py
 #
 
 import random
+import copy
 import numpy as np
-#from numpy.random import poisson
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib as mpl
+mpl.use('Agg')
+from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 from math import exp, factorial
 
 class Env:
 
-    def __init__(self, dim):
+    def __init__(self, dim, mean_return, mean_request):
 
         random.seed(0)
         self.dim = dim
-        self.request = [3, 4]
-        self.returned = [3, 2]
+        self.mean_request = [3, 4]
+        self.mean_return  = [3, 2]
+        self.reset()
 
     def reset(self):
 
-        #self.state = [random.randint(0,20), random.randint(0,20)]
         self.state = [10,10]
 
     def update(self):
@@ -34,152 +39,215 @@ class Env:
         if self.state[1] < 0:
             self.state[1] = 0
 
-    def move(self, n):
+    def transfer(self, a):
 
-        if n >= 0:
-            moving = min(n, self.state[0])
-        elif n < 0:
-            moving = -min(-n, self.state[1])
-        self.state[0] -= moving
-        self.state[1] += moving
-        self.update()
-        return abs(moving) * -2
+        action  = 0
+        if a > 0:
+            moving = min(a, self.state[0])
+        elif a < 0:
+            action = -min(-a, self.state[1])
+        self.state[0] -= action     # Cars are moved
+        self.state[1] += action     # from loc1 to loc2
+        if BUS_RIDER and action >= 1:
+            cost = abs(action - 1) * -2
+        else:
+            cost = abs(action) * -2
+        return self.state, action, cost     # 2 dolloars for each transfer
 
-    def requested(self, request, i):
+    def to_return(self, car):
 
-        rent = min(request, self.state[i])
-        reward = rent * 10
-        self.state[i] -= rent
-        self.update()
-        return rent, reward
-
-    def henkyaku(self, ret, i):
-
-        self.state[i] += ret
+        old_state = self.state
+        self.state = self.state + np.array(car)
+        #print ('state', old_state, '+', np.array(car), '=', self.state)
         self.update()
         return
+
+    def to_request(self, car):
+
+        old_state = self.state
+        rentable = np.array([min(car[i], self.state[i]) for i in range(2)])
+        reward = rentable * 10
+        self.state = self.state - rentable  # rented cars are removed out
+        """
+        print ('state', old_state, '-', np.array(car), '=', self.state, \
+            'rentable', rentable)
+        """
+        #self.update()
+        return rentable, reward
+
+    def to_check_parking_space(self):
+
+        if LIMITED_PARKING_SPACE:
+            return map(lambda x: -4 if (x > 10) else 0, env.state)
+        else:
+            return [0, 0]
+
+
+class Agent:
+
+    def __init__(self, dim, move_range=(-5,5)):
+
+        self.dim = dim
+        self.move_range = move_range
+        self.max_move = 5
+        #self.max_move = 20
+        self.value = np.zeros(dim, np.float32)
+        self.policy = np.zeros(dim,  np.int8)
+
+    def random_act(self, min_move, max_move):
+
+        return random.randint(min_move, max_move)
+
+    def randomize_policy(self):
+
+        for i in range(self.dim[0]):
+            for j in range(self.dim[1]):
+                self.policy[i,j] = self.random_act(self.move_range[0], self.move_range[1])
+
+    def get_policy(self, s):
+
+        return self.policy[s[0], s[1]]
+
+    def show_best_policy(self):
+
+        print (self.value)
+        w = [[np.argmax(self.value[i,j,:] - self.move_range[1])
+                for i in range(self.dim[0])]
+                    for j in range(self.dim[1])]
+        print (w)
+
+    def __getitem__(self, s):
+
+        return self.value[s[0], s[1]]
+
+    def plot_value(self):
+
+        x1 = np.linspace(self.move_range[0], self.move_range[1])
+        x2 = np.linspace(self.move_range[0], self.move_range[1])
+        X1, X2 = np.meshgrid(x1, x2)
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        surf = ax.plot_surface(X1, X2, self.value, cmap='bwr', linewidth=0)
+        fig.colorbar(surf)
+        ax.set_title("Value")
+        fig.show()
+
+
+def policy_evaluation(agent, env, gamma, theta):
+
+    rep = 0
+    p = Poisson(env.mean_return, env.mean_request)
+    for k in range(10):
+        delta = 0.0
+        rep += 1
+        print ('policy evaluation', rep)
+        ### FOR ALL STATES ###
+        for i in range(env.dim[0]):
+            for j in range(env.dim[1]):
+                value = agent.value[i,j]
+                action = agent.get_policy([i,j])
+                ### SUM OF P<s,a,s'> [R<s,pi(s),s'> + gamma V(s')] ###
+                env.state = [i, j]
+                curr_value = p.expected_value(action, agent, env, gamma)
+                agent.value[i, j] = curr_value
+                #new_value[i, j] = curr_value
+                delta = max(delta, abs(value - curr_value))
+                """
+                print ((i, j), 'a=%d' % action, 'v=%.4f %.4f' % (value, curr_value),\
+                    'delta', delta)
+                """
+        #agent.value = new_value     # Get back the values
+        print ('delta', delta)
+        if delta < theta:
+            break
+        #agent.show_best_policy()
+        print (np.flipud(agent.value))
+
+
+def policy_improvement(agent, env, gamma):
+
+    p = Poisson(env.mean_return, env.mean_request)
+    print ('policy improvement')
+    policy_stable = True
+    for i in range(agent.dim[0]):
+        for j in range(agent.dim[1]):
+            old_action = agent.get_policy([i, j])
+            w = []
+            for action in range(agent.move_range[0], agent.move_range[1] + 1):
+                env.state = [i, j]
+                value = p.expected_value(action, agent, env, gamma)
+                w.append(value)
+            k = np.argmax(w)
+            pi = k - agent.move_range[1]
+            #print (w)
+            print (i, j, 'action', old_action, '->', pi, old_action == pi)
+            agent.policy[i, j] = pi
+            if old_action != pi:
+                policy_stable = False
+    print (np.flipud(agent.policy))
+    #agent.plot_value()
+    return policy_stable
+
+
+class Poisson:
+
+    def __init__(self, mean_return, mean_request):
+
+        self.ret_prob_1 = [poisson(n, mean_return[0]) for n in range(POISSON_MAX_CAR+1)]
+        self.ret_prob_2 = [poisson(n, mean_return[1]) for n in range(POISSON_MAX_CAR+1)]
+        self.req_prob_1 = [poisson(n, mean_request[0]) for n in range(POISSON_MAX_CAR+1)]
+        self.req_prob_2 = [poisson(n, mean_request[1]) for n in range(POISSON_MAX_CAR+1)]
+        print (sum(self.ret_prob_1))
+
+    def expected_value(self, action, agent, env, gamma):
+    
+        old_state = env.state
+        next_state, real_action, transfer_cost = env.transfer(action)
+        curr_value = 0.0
+        for ret_1 in range(POISSON_MAX_CAR + 1):
+            for ret_2 in range(POISSON_MAX_CAR + 1):
+                for req_1 in range(POISSON_MAX_CAR + 1):
+                    for req_2 in range(POISSON_MAX_CAR + 1):
+                        env.state = copy.copy(next_state)
+                        env.to_return((ret_1, ret_2))
+                        rentable, credit = env.to_request((req_1, req_2))
+                        parking_cost = env.to_check_parking_space()
+                        """
+                        print (old_state, 'a=%d' % action, env.state,  \
+                            (ret_1, ret_2), (req_1, req_2),     \
+                            'trans', transfer_cost, 'parking', list(parking_cost),    \
+                            'credit', credit)
+                        """
+                        curr_value +=       \
+                            self.ret_prob_1[ret_1] * self.ret_prob_2[ret_2] *     \
+                            self.req_prob_1[req_1] * self.req_prob_2[req_2] *   \
+                            (transfer_cost + sum(parking_cost) + sum(credit) +  \
+                            gamma * agent[env.state])
+        return curr_value
+
 
 def poisson(n, lambda_):
 
     return (lambda_ ** n) * exp(-lambda_) / factorial(n)
 
 
-class Agent:
-
-    def __init__(self, dim):
-
-        print (dim)
-        self.dim = dim
-        self.value = np.zeros(dim, np.float16)
-        self.policy = np.zeros(dim, np.int8)
-
-    def random_act(self, min_move, max_move):
-
-        return random.randint(min_move, max_move)
-
-
-    def init_policy(self, move_range):
-
-        for i in range(self.dim[0]):
-            for j in range(self.dim[1]):
-                self.policy[i,j] = self.random_act(move_range[0], move_range[1])
-        print (self.policy)
-
-    def get_policy(self, s):
-
-        return self.policy[s[0], s[1]]
-
-def policy_evaluation(env, agent, mean_requested, mean_returned, dim, move_range, theta, gamma):
-
-    rep = 0
-    dim = (10,10)
-    max_n = 11
-    prob_req1 = [poisson(m, mean_requested[0])  for m in range(max_n + 1)]
-    prob_ret1 = [poisson(m, mean_returned[0] )  for m in range(max_n + 1)]
-    prob_req2 = [poisson(m, mean_requested[1])  for m in range(max_n + 1)]
-    prob_ret2 = [poisson(m, mean_returned[1])   for m in range(max_n + 1)]
-    #print (prob_req1)
-    #print (prob_ret1)
-    #print (prob_req2)
-    #print (prob_ret2)
-    delta = 0.0
-    #while (delta > theta):
-    while 1:
-        delta = 0.0
-        rep += 1
-        value = agent.value.copy()
-        for i in range(env.dim[0]):
-            v_list = []
-            for j in range(env.dim[1]):
-                v = agent.value[i,j]
-                move = agent.get_policy([i,j])
-                ### SUM OF P<s,a,s'> [R<s,pi(s),s'> + gamma V(s')] ###
-                value_s = 0.0
-                s = 0.0
-                for m1 in range(max_n + 1):
-                    for n1 in range(max_n + 1):
-                        for m2 in range(max_n + 1):
-                            for n2 in range(max_n + 1):
-                                env.state = [i,j]
-                                r = env.move(move)
-                                env.henkyaku(n1, 0)
-                                env.henkyaku(n2, 1)
-                                rent1, reward1 = env.requested(m1, 0)
-                                rent2, reward2 = env.requested(m2, 1)
-                                #if i in [0] and j in [0]:
-                                #    print (i,j, 'move', move, 'r', r, m1, n1, m2, n2, 'rent', rent1, rent2, 'reward', reward1, reward2)
-                                value_s += reward1 * prob_req1[m1] * prob_ret1[n1] / (dim[0]**2) + reward2 * prob_req2[m2] * prob_ret2[n2] / (dim[1]**2) + prob_req1[m1] * prob_ret1[n1] * prob_req2[m2] * prob_ret2[n2] * (r + gamma * value[env.state[0], env.state[1]])
-                                s += prob_req1[m1] * prob_ret1[n1] * prob_req2[m2] * prob_ret2[n2]
-                delta = max(delta, abs(v - value_s))
-                #print (i, j, 'move', move, 'value', v, 'to value_s', value_s, s)
-                agent.value[i,j] = value_s
-                v_list.append(value_s)
-            print ('rep', rep, 'i:', i, 'mean value_s', np.mean(v_list), np.std(v_list), s)
-            #print (v_list)
-        print ('rep:', rep, delta, theta) 
-        if theta is None: break
-        elif delta < theta: break
-
-def policy_improvement(env, agent, move_range):
-
-    print ('policy improvement')
-    policy_stable = True
-    for i in range(agent.dim[0]):
-        for j in range(agent.dim[1]):
-            b = agent.get_policy([i,j])
-            w = []
-            for move in range(move_range[0], move_range[1] + 1):
-                env.state = [i,j]
-                r = env.move(move)
-                w.append(r + gamma * agent.value[env.state[0], env.state[1]])
-            k = np.argmax(w)
-            pi_s = k - move_range[1]
-            #print (i, j, w, pi_s)
-            agent.policy[i,j] = pi_s
-            if b != pi_s:
-                policy_stable = False
-    return policy_stable
-
-
 gamma = 0.9
-theta = 0.01
-#theta = 1
+theta = 0.001
 dim = (21,21)
-#move_range = (-10,10)
-move_range = (-5,5)
-mean_requested  = [3,4]
-mean_returned   = [3,2]
-env = Env(dim)
-env.reset()
+#POISSON_MAX_CAR = 5
+POISSON_MAX_CAR = 10
+BUS_RIDER = False; LIMITED_PARKING_SPACE = False
+#BUS_RIDER = True; LIMITED_PARKING_SPACE = True
+mean_return     = [3,2]
+mean_request    = [3,4]
+env = Env(dim, mean_return, mean_request)
 agent = Agent(dim)
-agent.init_policy(move_range)
-loop = 0
-for rep in range(2000):
-    loop += 1
-    policy_evaluation(env, agent, mean_requested, mean_returned, dim, move_range, theta, gamma)
-    policy_stable = policy_improvement(env, agent, move_range)
-    print (agent.policy)
-    print (loop)
+#agent.randomize_policy()
+policy_stable = False
+#agent.plot_value()
+for rep in range(20):
+    print ('rep', rep+1)
+    policy_evaluation(agent, env, gamma, theta)
+    policy_stable = policy_improvement(agent, env, gamma)
     if policy_stable:
         break
-
