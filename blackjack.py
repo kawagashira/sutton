@@ -13,7 +13,7 @@ class Env:
 
         self.deck = [1,2,3,4,5,6,7,8,9,10,10,10,10]
 
-    def initialize(self, player, dealer):
+    def first_two_cards(self, player, dealer):
         """
 Returns:    state = (player's sum, dealer's showing card, player's usable ace)
         """
@@ -24,22 +24,21 @@ Returns:    state = (player's sum, dealer's showing card, player's usable ace)
         dealer.draw_card(self.hit())
         self.showing_card = dealer.cards[0]
         self.state = (player.sum, self.showing_card, player.usable_ace)
-        #print ('FIRST 2 HITS: sum', player.sum, 'cards', player.cards, player.usable_ace)
         return self.state
 
     def generate_experience(self, player, dealer):
 
         episode = []
-        self.initialize(player, dealer)
+        terminated = 0
+        self.first_two_cards(player, dealer)
+        reward, terminated = self.update(player, dealer)
         """
-        print ('Epi:%d' % (e+1), 'player %8s %2d' % (player.cards, player.sum),  \
+        print ('player %8s %2d' % (player.cards, player.sum),  \
             'dealer %8s %2d' % (dealer.cards, dealer.sum),          \
-            env.state)
+            self.state)
         """
         i = 4
         ### PLAYER"S TURN ###
-        terminated = 0
-        #while player.status == 'playing':
         while not terminated:
             i += 1
             old_state = self.state
@@ -106,15 +105,19 @@ class Agent:
 
     def __init__(self):
 
-        self.cards = []
-        self.sum = 0
-        self.usable_ace = False
+        self.clean_cards()
         self.value = 2 * (np.random.rand(10,10,2) - 0.5)
 
     def __getitem__(self, state):
 
         # [player'sum, dealer's showing card, player's uable ace]
         return self.value[state[0]-12, state[1]-1, int(state[2])]
+
+    def clean_cards(self):
+        
+        self.cards  = []
+        self.sum    = 0
+        self.usable_ace = False
 
     def get_policy(self, s):
         """
@@ -188,13 +191,14 @@ def main():
     import copy
     returns = Returns()
     env = Env()
+    player = Agent()
+    dealer = Agent()
     for e in range(1000000):
-        player = Agent()
-        dealer = Agent()
         episode = env.generate_experience(player, dealer)
-
         G = 0
         state_list = []
+        player.clean_cards()
+        dealer.clean_cards()
         for i in range(-1, -(len(episode)+1), -1):
             #print (i, episode[i])
             state, action, reward = episode[i]
@@ -205,11 +209,16 @@ def main():
             if not state in state_list:
                 returns[state].append(G)
                 old_value = copy.copy(player[state])
-                print ('orig', player.value[state[0]-12, state[1]-1, int(state[2])])
-                #player.value[state[0]-12, state[1]-1, int(state[2])] = mean(returns[state])
+                player.value[state[0]-12, state[1]-1, int(state[2])] =  \
+                    mean(returns[state])
+                """
+                print ('orig %.5f %.5f' %   \
+                    (player.value[state[0]-12, state[1]-1, int(state[2])],     \
+                    player[state], tuple(state), player.cards)
+                """
                 print ('old: %+.4f new: %+.4f diff %+.4f' %     \
                     (old_value, player[state], player[state] - old_value),  \
-                    tuple(state), returns[state])
+                    tuple(state))#, returns[state])
             #print (returns.data)
 
 main()
