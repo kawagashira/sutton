@@ -5,6 +5,7 @@
 #   Exercise 5.1: Blackjack
 
 import numpy as np
+import random
 
 
 class Env:
@@ -80,7 +81,6 @@ Returns:    state = (player's sum, dealer's showing card, player's usable ace)
 
     def hit(self):
 
-        import random
         return self.deck[random.randint(0, 12)]
 
     def update(self, player, dealer):
@@ -123,7 +123,8 @@ class Agent:
         """
 s = (players_sum, dealers_showing_card, player_usable_ace)
         """
-        return int((self[s[0], s[1], s[2]]) >=0)
+        #return int(self[s] >=0)
+        return int(random.random() > ((self[s] + 1.0)/2))
 
     def dealer_action(self):
 
@@ -165,6 +166,13 @@ s = (players_sum, dealers_showing_card, player_usable_ace)
                 self.status = 'bust'
         return self.status
 
+    def show_value(self):
+
+        print ('USABLE ACE')
+        print (np.flipud(self.value[:, :, 1]))
+        print ('NO USABLE ACE')
+        print (np.flipud(self.value[:, :, 0]))
+
 
 class Returns:
 
@@ -184,6 +192,22 @@ class Returns:
         return 'Returns'
 
 
+def plot_surface(data):
+
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = plt.figure(figsize=(8,6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # x, y, z成分のデータの作成
+    _x = np.arange(1, 11)
+    _y = np.arange(12, 22)
+    _xx, _yy = np.meshgrid(_x, _y)
+    #x, y = _xx.ravel(), _yy.ravel()
+    surf = ax.plot_surface(_xx, _yy, data)
+    plt.show()
+
+
 GAMMA = 1.0
 def main():
 
@@ -193,12 +217,16 @@ def main():
     env = Env()
     player = Agent()
     dealer = Agent()
-    for e in range(1000000):
+    epi_nr = 0
+    for e in range(500000):
+        epi_nr += 1
         episode = env.generate_experience(player, dealer)
         G = 0
         state_list = []
         player.clean_cards()
         dealer.clean_cards()
+        if epi_nr % 1000 == 0:
+            print (epi_nr, episode)
         for i in range(-1, -(len(episode)+1), -1):
             #print (i, episode[i])
             state, action, reward = episode[i]
@@ -215,11 +243,14 @@ def main():
                 print ('orig %.5f %.5f' %   \
                     (player.value[state[0]-12, state[1]-1, int(state[2])],     \
                     player[state], tuple(state), player.cards)
-                """
-                print ('old: %+.4f new: %+.4f diff %+.4f' %     \
+                print ('old: %+.4f new: %+.4f diff %+.6f' %     \
                     (old_value, player[state], player[state] - old_value),  \
                     tuple(state))#, returns[state])
+                """
             #print (returns.data)
+    player.show_value()
+    plot_surface(player.value[:, :, 1])     # usable ace
+
 
 main()
 
