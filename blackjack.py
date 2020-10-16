@@ -192,19 +192,27 @@ class Returns:
         return 'Returns'
 
 
-def plot_surface(data):
+def plot_surface(agent):
 
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     fig = plt.figure(figsize=(8,6))
-    ax = fig.add_subplot(111, projection='3d')
+    ax1 = fig.add_subplot(121, projection='3d')
+    ax2 = fig.add_subplot(122, projection='3d')
 
     # x, y, z成分のデータの作成
     _x = np.arange(1, 11)
     _y = np.arange(12, 22)
     _xx, _yy = np.meshgrid(_x, _y)
     #x, y = _xx.ravel(), _yy.ravel()
-    surf = ax.plot_surface(_xx, _yy, data)
+    surf = ax1.plot_surface(_xx, _yy, agent.value[:,:,1])
+    surf = ax2.plot_surface(_xx, _yy, agent.value[:,:,0])
+    ax1.set_title('Usable ace')
+    ax1.set_xlabel('Dealer showing')
+    ax1.set_ylabel('Player sum')
+    ax2.set_title('No usable ace')
+    ax2.set_xlabel('Dealer showing')
+    ax2.set_ylabel('Player sum')
     plt.show()
 
 
@@ -219,6 +227,7 @@ def main():
     dealer = Agent()
     epi_nr = 0
     for e in range(500000):
+    #for e in range(500):
         epi_nr += 1
         episode = env.generate_experience(player, dealer)
         G = 0
@@ -249,7 +258,7 @@ def main():
                 """
             #print (returns.data)
     player.show_value()
-    plot_surface(player.value[:, :, 1])     # usable ace
+    plot_surface(player)     # usable ace
 
 
 main()
