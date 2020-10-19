@@ -43,7 +43,8 @@ Returns:    state = (player's sum, dealer's showing card, player's usable ace)
         while not terminated:
             i += 1
             old_state = self.state
-            action = player.get_policy(old_state)
+            #action = player.get_policy(old_state)
+            action = player.player_action()
             if action:          # HITS
                 card = self.hit()
                 player.draw_card(card)
@@ -128,7 +129,11 @@ s = (players_sum, dealers_showing_card, player_usable_ace)
 
     def dealer_action(self):
 
-        return (self.sum <= 16)      # HITS/STICKS
+        return (self.sum <= 16)     # dealer sticks the sum of 17 or greater
+
+    def player_action(self):
+
+        return (self.sum <= 20)     # player sticks when sum is 20 or 21
 
     def draw_card(self, x):
 
@@ -213,6 +218,7 @@ def plot_surface(agent):
     ax2.set_title('No usable ace')
     ax2.set_xlabel('Dealer showing')
     ax2.set_ylabel('Player sum')
+    plt.savefig('bj.png')
     plt.show()
 
 
@@ -227,7 +233,8 @@ def main():
     dealer = Agent()
     epi_nr = 0
     for e in range(500000):
-    #for e in range(500):
+    #for e in range(100000):
+    #for e in range(10000):
         epi_nr += 1
         episode = env.generate_experience(player, dealer)
         G = 0
