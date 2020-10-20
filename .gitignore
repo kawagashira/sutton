@@ -3,3 +3,4 @@ __pycache__
 .DS_Store
 .python-version
 exercise4.7.txt
+*.png

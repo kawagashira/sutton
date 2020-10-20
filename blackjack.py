@@ -43,21 +43,20 @@ Returns:    state = (player's sum, dealer's showing card, player's usable ace)
         while not terminated:
             i += 1
             old_state = self.state
-            #action = player.get_policy(old_state)
+            #print ('old_state', old_state, 'sum', player.sum)
             action = player.player_action()
+            card = 0
             if action:          # HITS
                 card = self.hit()
                 player.draw_card(card)
-            else:
-                card = 0
             reward, terminated = self.update(player, dealer)
-            #print (i, 'P', old_state, 'A:card %d,%2d' % (action, card), 'R %+d' % reward, 'sum', player.sum, player.status)
+            print (i, 'Player', old_state, 'act:%d card:%2d' % (action, card), 'R %+d' % reward, 'sum', player.sum, player.status)
             episode.append([old_state, action, reward])
             if terminated:
                 break
             if action == 0:     # STICKS
                 break
-        #print ('P status', player.status, dealer.status, 'terminated', terminated)
+        #print ('Player status', player.status, dealer.status, 'terminated', terminated)
 
         ### DEALER'S TURN ###
         #while dealer.status == 'playing':
@@ -65,19 +64,21 @@ Returns:    state = (player's sum, dealer's showing card, player's usable ace)
             i += 1
             old_state = self.state
             action = dealer.dealer_action()
+            card = 0
             if action:          # HITS
                 card = self.hit()
                 dealer.draw_card(card)
-            else:
-                card = 0
             reward, terminated = self.update(player, dealer) 
-            if action == 0:     # When sticks
+            print (i, 'Dealer', old_state, 'act:%d card:%2d' % (action, card), 'R %+d' % reward, 'sum', dealer.sum, dealer.status)
+            if action == 0:     # When dealer sticks
                 break
 
         ### COMPARE ###
         if not terminated:
             final_reward = np.sign(player.sum - dealer.sum)
             episode[-1][-1] = final_reward
+        if len(episode) != 0:
+            print ('### player:%2d' % player.sum, 'dealer:%2d' % dealer.sum, 'R:%+d' % episode[-1][-1])
         return episode
 
     def hit(self):
@@ -127,13 +128,13 @@ s = (players_sum, dealers_showing_card, player_usable_ace)
         #return int(self[s] >=0)
         return int(random.random() > ((self[s] + 1.0)/2))
 
+    def player_action(self):
+
+        return (self.sum <= 19)     # player sticks when sum is 20 or 21
+
     def dealer_action(self):
 
         return (self.sum <= 16)     # dealer sticks the sum of 17 or greater
-
-    def player_action(self):
-
-        return (self.sum <= 20)     # player sticks when sum is 20 or 21
 
     def draw_card(self, x):
 
@@ -232,8 +233,8 @@ def main():
     player = Agent()
     dealer = Agent()
     epi_nr = 0
-    for e in range(500000):
-    #for e in range(100000):
+    #for e in range(500000):
+    for e in range(100000):
     #for e in range(10000):
         epi_nr += 1
         episode = env.generate_experience(player, dealer)
@@ -246,13 +247,13 @@ def main():
         for i in range(-1, -(len(episode)+1), -1):
             #print (i, episode[i])
             state, action, reward = episode[i]
-            if state[0] <= 11:
+            if state[0] <= 11:      # when player sum <= 11
                 continue
             G = GAMMA * G + reward 
             state_list.append(tuple(state))
             if not state in state_list:
                 returns[state].append(G)
-                old_value = copy.copy(player[state])
+                #old_value = copy.copy(player[state])
                 player.value[state[0]-12, state[1]-1, int(state[2])] =  \
                     mean(returns[state])
                 """
